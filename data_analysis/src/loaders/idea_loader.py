@@ -81,11 +81,27 @@ class IdeaLoader:
             
             # Extract fields
             idea_id = self._extract_id(idea.get('_id'))
-            title = idea.get('title', '').strip()
             
-            # Skip ideas with empty titles
-            if not title:
-                logger.warning(f"Idea {idea_id} has empty title, skipping")
+             # Extract and process title and description
+            raw_title = idea.get('title', '').strip()
+            raw_description = idea.get('description', '').strip()
+            
+            # Handle the different scenarios for title and description
+            if raw_title and raw_description:
+                # Both title and description are non-empty, join with a colon
+                title = f"{raw_title}: {raw_description}"
+                description = raw_description
+            elif raw_title and not raw_description:
+                # Only title is non-empty
+                title = raw_title
+                description = raw_description
+            elif not raw_title and raw_description:
+                # Only description is non-empty, use it for both
+                title = raw_description
+                description = raw_description
+            else:
+                # Both are empty, skip idea
+                logger.warning(f"Idea {idea_id} has no content, skipping")
                 return None
             
             # Extract timestamps
@@ -95,7 +111,7 @@ class IdeaLoader:
             processed_idea = {
                 'id': idea_id,
                 'title': title,
-                'description': idea.get('description', '').strip(),
+                'description': description,
                 'created_date': created_date,
                 'owner': idea.get('owner'),
                 'ranking': idea.get('ranking', 0),

@@ -80,13 +80,13 @@ class UserLoader:
                 return None
             
             # Check for required fields
-            for field in ['id', 'email']:
+            for field in ['_id', 'email']:
                 if field not in user:
                     logger.warning(f"User missing required field: {field}")
                     return None
             
             # Extract identifier - can be in different formats
-            user_id = user.get('id')
+            user_id = user.get('_id')
             if isinstance(user_id, dict) and '$oid' in user_id:
                 user_id = user_id['$oid']
             
@@ -124,7 +124,7 @@ class UserLoader:
             return processed_user
             
         except Exception as e:
-            logger.error(f"Error processing user {user.get('id', 'unknown')}: {str(e)}")
+            logger.error(f"Error processing user {user.get('_id', 'unknown')}: {str(e)}")
             return None
     
     @staticmethod
@@ -207,7 +207,7 @@ class UserLoader:
     def _extract_orbit_profile(user: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Extract Orbit profile information from user record."""
         if 'orbitProfile' not in user or not user['orbitProfile']:
-            return None
+            return {}
             
         profile = user['orbitProfile']
         return {

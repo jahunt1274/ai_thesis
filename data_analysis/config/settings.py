@@ -24,7 +24,7 @@ IDEA_DATA_FILE = os.environ.get('AI_THESIS_IDEA_DATA', str(Path(DATA_DIR) / 'ide
 STEP_DATA_FILE = os.environ.get('AI_THESIS_STEP_DATA', str(Path(DATA_DIR) / 'steps.json'))
 
 # OpenAI API Configuration
-OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
+OPENAI_API_KEY = os.environ.get('OPENAI_API_THESIS_KEY', '')
 DEFAULT_MODEL = os.environ.get('AI_THESIS_MODEL', 'gpt-4o')
 
 # Available OpenAI models

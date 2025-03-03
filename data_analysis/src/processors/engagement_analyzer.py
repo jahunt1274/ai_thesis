@@ -52,6 +52,8 @@ class EngagementAnalyzer:
     
     def _analyze_process_completion(self) -> Dict[str, Any]:
         """Analyze how users progress through the idea development process."""
+        logger.info("Analyzing process completion")
+
         completion_stats = {
             'total_ideas': len(self.ideas),
             'ideas_with_steps': 0,
@@ -135,6 +137,8 @@ class EngagementAnalyzer:
     
     def _analyze_dropout_points(self) -> Dict[str, Any]:
         """Analyze where users stop in the process."""
+        logger.info("Analyzing dropout points")
+        
         # Track step progression to identify common dropout points
         step_progression = defaultdict(int)
         final_steps = defaultdict(int)
@@ -190,6 +194,8 @@ class EngagementAnalyzer:
     
     def _analyze_time_based_engagement(self) -> Dict[str, Any]:
         """Analyze time-based engagement patterns."""
+        logger.info("Analyzing time-based engagement")
+        
         # Group steps by creation date
         steps_by_date = defaultdict(list)
         
@@ -251,6 +257,8 @@ class EngagementAnalyzer:
     
     def _analyze_cohort_comparison(self) -> Dict[str, Any]:
         """Compare engagement across different user cohorts."""
+        logger.info("Analyzing cohort comparison")
+        
         # Define cohorts based on user types
         cohorts = {
             'by_user_type': self._analyze_user_type_cohorts(),
@@ -436,6 +444,8 @@ class EngagementAnalyzer:
         Returns:
             Dictionary of cohort comparisons
         """
+        logger.info("Analyzing cohort comparison - user types")
+        
         # Group users by type
         users_by_type = defaultdict(list)
         
@@ -502,6 +512,8 @@ class EngagementAnalyzer:
         Returns:
             Dictionary of cohort comparisons
         """
+        logger.info("Analyzing cohort comparison - institution")
+        
         # Group users by institution
         users_by_institution = defaultdict(list)
         
@@ -569,6 +581,8 @@ class EngagementAnalyzer:
         Returns:
             Dictionary of cohort comparisons
         """
+        logger.info("Analyzing cohort comparison - enrollment")
+        
         # Group users by enrollment
         users_by_enrollment = defaultdict(list)
         
