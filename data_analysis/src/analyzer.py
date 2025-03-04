@@ -9,7 +9,15 @@ from typing import Dict, List, Any, Optional, Tuple
 
 from config import OUTPUT_DIR
 from src.loaders import DataLoader
-from src.processors import DemographicAnalyzer, UsageAnalyzer, EngagementAnalyzer, IdeaCategorizer
+from src.processors import (
+    DemographicAnalyzer, 
+    UsageAnalyzer, 
+    EngagementAnalyzer, 
+    IdeaCategorizer, 
+    CategoryMerger,
+    IdeaCategoryAnalyzer
+)
+from src.visualizers import VisualizationManager
 from src.utils import FileHandler, get_logger
 
 logger = get_logger("analyzer")
@@ -26,7 +34,8 @@ class Analyzer:
             output_dir: str = OUTPUT_DIR,
             categorize_ideas: bool = False,
             openai_api_key: Optional[str] = None,
-            openai_model: Optional[str] = None
+            openai_model: Optional[str] = None,
+            categorized_ideas_file: Optional[str] = None
         ):
         """
         Initialize the analyzer.
@@ -44,6 +53,7 @@ class Analyzer:
         self.categorize_ideas = categorize_ideas
         self.openai_api_key = openai_api_key
         self.openai_model = openai_model
+        self.categorized_ideas_file = categorized_ideas_file
         
         # Initialize file handler
         self.file_handler = FileHandler()
@@ -55,6 +65,7 @@ class Analyzer:
         self.users = None
         self.ideas = None
         self.steps = None
+        self.categorized_ideas = None
         self.analysis_results = {}
         self.performance_metrics = {
             "start_time": None,
@@ -107,77 +118,143 @@ class Analyzer:
         self.analysis_results["engagement"] = engagement_results
         self.performance_metrics["component_times"]["engagement_analysis"] = time.time() - component_start
         
-        # Run idea categorization if requested
-        if self.categorize_ideas:
-            if not self.openai_api_key:
-                logger.warning("OpenAI API key not provided. Skipping idea categorization.")
-            else:
-                logger.info("Running idea categorization...")
-                component_start = time.time()
-                idea_categorizer = IdeaCategorizer(
-                    ideas=self.ideas,
-                    output_dir=os.path.join(self.output_dir, "categorization"),
-                    api_key=self.openai_api_key,
-                    model=self.openai_model
-                )
-                categorized_ideas = idea_categorizer.categorize()
-                self.analysis_results["categorization"] = self._analyze_categorization(categorized_ideas)
-                self.performance_metrics["component_times"]["idea_categorization"] = time.time() - component_start
+        # Handle categorized ideas (either from file or by running categorization)
+        categorized_ideas = self._handle_categorization()
+        if categorized_ideas:
+            # Run category analysis
+            logger.info("Running category analysis...")
+            component_start = time.time()
+            category_analyzer = IdeaCategoryAnalyzer(categorized_ideas)
+            category_results = category_analyzer.analyze()
+            self.analysis_results["categorization"] = category_results
+            self.performance_metrics["component_times"]["category_analysis"] = time.time() - component_start
         
-        # Save results
-        logger.info("Saving analysis results...")
+        # Run idea categorization analysis
+        logger.info("Running idea categorization analysis...")
         component_start = time.time()
-        self._save_results()
-        self.performance_metrics["component_times"]["saving_results"] = time.time() - component_start
         
         # Calculate total runtime
         self.performance_metrics["end_time"] = time.time()
         self.performance_metrics["total_runtime"] = (
             self.performance_metrics["end_time"] - self.performance_metrics["start_time"]
         )
+
+        # Create visualizations
+        logger.info("Creating visualizations...")
+        component_start = time.time()
+        self._create_visualizations()
+        self.performance_metrics["component_times"]["visualization"] = time.time() - component_start
+
+        # Save results
+        logger.info("Saving analysis results...")
+        component_start = time.time()
+        self._save_results()
+        self.performance_metrics["component_times"]["saving_results"] = time.time() - component_start
         
         logger.info(f"Analysis completed in {self.performance_metrics['total_runtime']:.2f} seconds")
         
         return self.analysis_results
     
-    def _analyze_categorization(self, categorized_ideas: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _handle_categorization(self) -> List[Dict[str, Any]]:
         """
-        Analyze categorization results.
+        Handle idea categorization, either from file or via API.
+        
+        Returns:
+            List of categorized ideas, or empty list if categorization is disabled
+        """
+        categorized_ideas = []
+        
+        # Check if we have a pre-categorized ideas file
+        if self.categorized_ideas_file and os.path.exists(self.categorized_ideas_file):
+            logger.info(f"Using pre-categorized ideas from {self.categorized_ideas_file}")
+            component_start = time.time()
+            
+            # Merge categories into ideas
+            category_merger = CategoryMerger(self.ideas)
+            self.ideas = category_merger.load_and_merge_categories(self.categorized_ideas_file)
+            
+            # Filter to only include ideas with categories
+            categorized_ideas = [idea for idea in self.ideas if "category" in idea]
+            
+            self.performance_metrics["component_times"]["category_merging"] = time.time() - component_start
+            logger.info(f"Merged categories into {len(categorized_ideas)} ideas")
+            
+            return categorized_ideas
+            
+        # Otherwise, check if we should run categorization via API
+        elif self.categorize_ideas:
+            # Check if ideas already have categories
+            already_categorized = all("category" in idea for idea in self.ideas)
+            
+            if already_categorized:
+                logger.info("Ideas already have categories. Using existing categories.")
+                return self.ideas
+                
+            elif not self.openai_api_key:
+                logger.warning("OpenAI API key not provided. Skipping idea categorization.")
+                return []
+                
+            else:
+                logger.info("Running idea categorization via API...")
+                component_start = time.time()
+                
+                # Run categorization
+                idea_categorizer = IdeaCategorizer(
+                    ideas=self.ideas,
+                    output_dir=os.path.join(self.output_dir, "categorization"),
+                    api_key=self.openai_api_key,
+                    model=self.openai_model
+                )
+                
+                categorized_ideas = idea_categorizer.categorize()
+                self.performance_metrics["component_times"]["idea_categorization"] = time.time() - component_start
+                
+                # Update main ideas list with categories
+                self._update_ideas_with_categories(categorized_ideas)
+                
+                return categorized_ideas
+        
+        # If we get here, categorization is disabled
+        return []
+
+    def _update_ideas_with_categories(self, categorized_ideas: List[Dict[str, Any]]) -> None:
+        """
+        Update the main ideas list with categories from categorized ideas.
         
         Args:
             categorized_ideas: List of categorized ideas
-            
-        Returns:
-            Dictionary of categorization analysis
         """
-        # Count ideas by category
-        category_counts = {}
+        # Create a map of idea IDs to categories
+        category_map = {}
         
         for idea in categorized_ideas:
-            category = idea.get("category", "Uncategorized")
-            category_counts[category] = category_counts.get(category, 0) + 1
+            if "id" in idea and "category" in idea:
+                category_map[idea["id"]] = idea["category"]
         
-        # Calculate percentages
-        total_ideas = len(categorized_ideas)
-        category_percentages = {}
+        # Update main ideas list
+        updated_count = 0
         
-        if total_ideas > 0:
-            for category, count in category_counts.items():
-                category_percentages[category] = (count / total_ideas) * 100
+        for idea in self.ideas:
+            if idea.get("id") in category_map:
+                idea["category"] = category_map[idea["id"]]
+                updated_count += 1
         
-        # Find top categories
-        top_categories = sorted(
-            category_counts.items(),
-            key=lambda x: x[1],
-            reverse=True
-        )[:10]  # Top 10 categories
-        
-        return {
-            "total_categorized": total_ideas,
-            "category_counts": category_counts,
-            "category_percentages": category_percentages,
-            "top_categories": top_categories
-        }
+        logger.info(f"Updated {updated_count} ideas with categories")
+    
+    def _create_visualizations(self):
+        """Create visualizations for analysis results."""
+        try:
+            # Create visualization manager
+            vis_manager = VisualizationManager(self.output_dir)
+            
+            # Create visualizations for all components
+            self.visualization_outputs = vis_manager.visualize_all(self.analysis_results)
+            
+            logger.info(f"Created visualizations for {len(self.visualization_outputs)} analysis components")
+            
+        except Exception as e:
+            logger.error(f"Error creating visualizations: {str(e)}")
+            self.visualization_outputs = {}
     
     def _save_results(self):
         """Save analysis results to files."""

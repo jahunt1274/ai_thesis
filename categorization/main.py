@@ -34,7 +34,7 @@ def main():
         '--model', 
         type=str,
         choices=available_models,
-        default=OpenAIModels.GPT35.value, 
+        default=OpenAIModels.GPT35Turbo.value, 
         help='OpenAI model to use'
     )
     parser.add_argument(

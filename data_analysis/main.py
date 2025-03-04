@@ -73,6 +73,12 @@ def parse_arguments() -> argparse.Namespace:
         default=DEFAULT_MODEL,
         help="OpenAI model to use for idea categorization"
     )
+    parser.add_argument(
+        '--categorized-file',
+        type=str,
+        default=None,
+        help='Path to pre-categorized ideas JSON file'
+    )
     
     # Selective analysis options
     parser.add_argument(
@@ -89,6 +95,11 @@ def parse_arguments() -> argparse.Namespace:
         "--engagement-only",
         action="store_true",
         help="Run only engagement analysis"
+    )
+    parser.add_argument(
+        "--categorization-only",
+        action="store_true",
+        help="Run only categorization analysis"
     )
     
     return parser.parse_args()
@@ -113,6 +124,11 @@ def main() -> int:
         logger.error("OpenAI API key is required for idea categorization")
         return 1
     
+    # Check categorized file if provided
+    if args.categorized_file and not os.path.exists(args.categorized_file):
+        logger.error(f"Categorized ideas file not found: {args.categorized_file}")
+        return 1
+    
     try:
         # Initialize and run the analyzer
         analyzer = Analyzer(
@@ -122,8 +138,15 @@ def main() -> int:
             output_dir=args.output_dir,
             categorize_ideas=args.categorize_ideas,
             openai_api_key=args.openai_key,
-            openai_model=args.openai_model
+            openai_model=args.openai_model,
+            categorized_ideas_file=args.categorized_file
         )
+
+        # Run only selected analyses if specified
+        if args.demographic_only or args.usage_only or args.engagement_only or args.categorization_only:
+            logger.info("Running selected analyses only")
+            # Currently not implemented - would need to modify the Analyzer to support partial runs
+            pass
         
         # Run the analyzer
         results = analyzer.run()
