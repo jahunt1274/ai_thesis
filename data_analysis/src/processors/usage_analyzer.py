@@ -136,8 +136,8 @@ class UsageAnalyzer:
                 framework_counts[framework] += 1
         
         # Calculate framework completion rates
-        de_completion = self._calculate_completion_rate('Disciplined Entrepreneurship')
-        st_completion = self._calculate_completion_rate('Startup Tactics')
+        de_completion = self._calculate_completion_rate('disciplined-entrepreneurship')
+        st_completion = self._calculate_completion_rate('startup-tactics')
         
         return {
             'framework_counts': dict(framework_counts),
@@ -202,8 +202,8 @@ class UsageAnalyzer:
     def _analyze_framework_engagement(self) -> Dict[str, Any]:
         """Analyze engagement by framework usage."""
         framework_users = {
-            'Disciplined Entrepreneurship': set(),
-            'Startup Tactics': set(),
+            'disciplined-entrepreneurship': set(),
+            'startup-tactics': set(),
             'both_frameworks': set(),
             'no_framework': set()
         }
@@ -213,23 +213,23 @@ class UsageAnalyzer:
             owner = idea.get('owner')
             frameworks = idea.get('frameworks', [])
             
-            if 'Disciplined Entrepreneurship' in frameworks:
-                framework_users['Disciplined Entrepreneurship'].add(owner)
+            if 'disciplined-entrepreneurship' in frameworks:
+                framework_users['disciplined-entrepreneurship'].add(owner)
             
-            if 'Startup Tactics' in frameworks:
-                framework_users['Startup Tactics'].add(owner)
+            if 'startup-tactics' in frameworks:
+                framework_users['startup-tactics'].add(owner)
         
         # Identify users using both frameworks
         framework_users['both_frameworks'] = (
-            framework_users['Disciplined Entrepreneurship'] & 
-            framework_users['Startup Tactics']
+            framework_users['disciplined-entrepreneurship'] & 
+            framework_users['startup-tactics']
         )
         
         # Identify users using no framework
         all_idea_owners = set(self.ideas_by_owner.keys())
         framework_users['no_framework'] = all_idea_owners - (
-            framework_users['Disciplined Entrepreneurship'] | 
-            framework_users['Startup Tactics']
+            framework_users['disciplined-entrepreneurship'] | 
+            framework_users['startup-tactics']
         )
         
         # Convert sets to counts
@@ -290,11 +290,11 @@ class UsageAnalyzer:
             'avg_progress': 0,
             'progress_distribution': defaultdict(int),
             'framework_progress': {
-                'Disciplined Entrepreneurship': {
+                'disciplined-entrepreneurship': {
                     'avg_progress': 0,
                     'total_ideas': 0
                 },
-                'Startup Tactics': {
+                'startup-tactics': {
                     'avg_progress': 0,
                     'total_ideas': 0
                 }
@@ -308,6 +308,7 @@ class UsageAnalyzer:
         st_total = 0
         st_count = 0
         
+        # 11787 look here for why frameworks is missing in user
         for idea in self.ideas:
             progress = idea.get('total_progress', 0)
             total_progress += progress
@@ -317,11 +318,11 @@ class UsageAnalyzer:
             progress_data['progress_distribution'][progress_bucket] += 1
             
             # Track by framework
-            if 'Disciplined Entrepreneurship' in idea.get('frameworks', []):
+            if 'disciplined-entrepreneurship' in idea.get('frameworks', []):
                 de_total += idea.get('de_progress', 0)
                 de_count += 1
             
-            if 'Startup Tactics' in idea.get('frameworks', []):
+            if 'startup-tactics' in idea.get('frameworks', []):
                 st_total += idea.get('st_progress', 0)
                 st_count += 1
         
@@ -330,12 +331,12 @@ class UsageAnalyzer:
             progress_data['avg_progress'] = total_progress / len(self.ideas)
         
         if de_count > 0:
-            progress_data['framework_progress']['Disciplined Entrepreneurship']['avg_progress'] = de_total / de_count
-            progress_data['framework_progress']['Disciplined Entrepreneurship']['total_ideas'] = de_count
+            progress_data['framework_progress']['disciplined-entrepreneurship']['avg_progress'] = de_total / de_count
+            progress_data['framework_progress']['disciplined-entrepreneurship']['total_ideas'] = de_count
         
         if st_count > 0:
-            progress_data['framework_progress']['Startup Tactics']['avg_progress'] = st_total / st_count
-            progress_data['framework_progress']['Startup Tactics']['total_ideas'] = st_count
+            progress_data['framework_progress']['startup-tactics']['avg_progress'] = st_total / st_count
+            progress_data['framework_progress']['startup-tactics']['total_ideas'] = st_count
         
         # Convert defaultdict to regular dict
         progress_data['progress_distribution'] = dict(progress_data['progress_distribution'])
@@ -368,9 +369,9 @@ class UsageAnalyzer:
                 framework_ideas.append(idea)
                 
                 # Get framework-specific progress
-                if framework == 'Disciplined Entrepreneurship':
+                if framework == 'disciplined-entrepreneurship':
                     progress = idea.get('de_progress', 0)
-                elif framework == 'Startup Tactics':
+                elif framework == 'startup-tactics':
                     progress = idea.get('st_progress', 0)
                 else:
                     progress = 0

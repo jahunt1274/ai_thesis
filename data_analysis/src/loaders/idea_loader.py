@@ -102,7 +102,7 @@ class IdeaLoader:
             else:
                 # Both are empty, skip idea
                 logger.warning(f"Idea {idea_id} has no content, skipping")
-                return None
+                return
             
             # Extract timestamps
             created_date = self._extract_timestamp(idea.get('created'))
@@ -116,8 +116,8 @@ class IdeaLoader:
                 'owner': idea.get('owner'),
                 'ranking': idea.get('ranking', 0),
                 'total_progress': idea.get('total_progress', 0),
-                'de_progress': self._extract_progress(idea, 'Disciplined Entrepreneurship'),
-                'st_progress': self._extract_progress(idea, 'Startup Tactics'),
+                'de_progress': self._extract_progress(idea, 'disciplined-entrepreneurship'),
+                'st_progress': self._extract_progress(idea, 'startup-tactics'),
                 'language': idea.get('language', 'en'),
                 'frameworks': self._determine_frameworks(idea),
                 'steps_completed': self._count_completed_steps(idea)
@@ -159,10 +159,10 @@ class IdeaLoader:
                 return float(progress)
         
         # Check alternative formats
-        if framework == 'Disciplined Entrepreneurship' and 'DE_progress' in idea:
+        if framework == 'disciplined-entrepreneurship' and 'DE_progress' in idea:
             return float(idea['DE_progress']) if idea['DE_progress'] else 0.0
             
-        if framework == 'Startup Tactics' and 'ST_progress' in idea:
+        if framework == 'startup-tactics' and 'ST_progress' in idea:
             return float(idea['ST_progress']) if idea['ST_progress'] else 0.0
         
         return 0.0
@@ -172,6 +172,7 @@ class IdeaLoader:
         """Determine which frameworks are used by this idea."""
         frameworks = []
         
+        # 11787 HERE!!  Frameworks only getting listed if they have progress
         # Check progress fields
         if 'progress' in idea and idea['progress']:
             for framework in idea['progress']:
@@ -180,14 +181,14 @@ class IdeaLoader:
         
         # Check framework-specific progress
         if 'DE_progress' in idea and idea['DE_progress']:
-            frameworks.append('Disciplined Entrepreneurship')
+            frameworks.append('disciplined-entrepreneurship')
             
         if 'ST_progress' in idea and idea['ST_progress']:
-            frameworks.append('Startup Tactics')
+            frameworks.append('startup-tactics')
         
         # Check from_tactics flag
         if 'from_tactics' in idea and idea['from_tactics']:
-            frameworks.append('Startup Tactics')
+            frameworks.append('startup-tactics')
         
         return list(set(frameworks))  # Remove duplicates
     

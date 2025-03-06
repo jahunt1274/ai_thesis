@@ -350,7 +350,7 @@ class UsageVisualizer(BaseVisualizer):
             values = []
             
             # Order of frameworks to display
-            frameworks = ['Disciplined Entrepreneurship', 'Startup Tactics', 
+            frameworks = ['disciplined-entrepreneurship', 'startup-tactics', 
                          'both_frameworks', 'no_framework']
             
             # Custom labels
@@ -392,8 +392,8 @@ class UsageVisualizer(BaseVisualizer):
             plt.figure(figsize=(10, 8))
             
             # Extract counts for Venn diagram
-            de_count = framework_engagement.get('Disciplined Entrepreneurship', 0)
-            st_count = framework_engagement.get('Startup Tactics', 0)
+            de_count = framework_engagement.get('disciplined-entrepreneurship', 0)
+            st_count = framework_engagement.get('startup-tactics', 0)
             both_count = framework_engagement.get('both_frameworks', 0)
             
             # Adjust counts for Venn diagram (subtract overlap)
@@ -402,7 +402,7 @@ class UsageVisualizer(BaseVisualizer):
             
             # Create Venn diagram
             venn = venn2(subsets=(de_only, st_only, both_count), 
-                       set_labels=('Disciplined Entrepreneurship', 'Startup Tactics'))
+                       set_labels=('disciplined-entrepreneurship', 'startup-tactics'))
             
             # Set colors
             venn.get_patch_by_id('10').set_color('dodgerblue')
@@ -757,8 +757,8 @@ class UsageVisualizer(BaseVisualizer):
             
             # Create a simple bar chart
             # Define colors for known frameworks
-            colors = ['dodgerblue' if f == 'Disciplined Entrepreneurship' else
-                     'darkorange' if f == 'Startup Tactics' else
+            colors = ['dodgerblue' if f == 'disciplined-entrepreneurship' else
+                     'darkorange' if f == 'startup-tactics' else
                      'gray' for f in frameworks]
             
             bars = plt.bar(frameworks, counts, color=colors)
@@ -807,7 +807,7 @@ class UsageVisualizer(BaseVisualizer):
             fig, axes = plt.subplots(2, 2, figsize=(14, 12))
             
             # Extract data
-            frameworks = ['Disciplined Entrepreneurship', 'Startup Tactics']
+            frameworks = ['disciplined-entrepreneurship', 'startup-tactics']
             completions = [de_completion, st_completion]
             colors = ['dodgerblue', 'darkorange']
             

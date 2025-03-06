@@ -61,11 +61,11 @@ class EngagementAnalyzer:
             'max_steps_per_idea': 0,
             'step_distribution': defaultdict(int),
             'completion_by_framework': {
-                'Disciplined Entrepreneurship': {
+                'disciplined-entrepreneurship': {
                     'avg_completion': 0,
                     'total_ideas': 0
                 },
-                'Startup Tactics': {
+                'startup-tactics': {
                     'avg_completion': 0,
                     'total_ideas': 0
                 }
@@ -102,10 +102,10 @@ class EngagementAnalyzer:
             framework_counts = self._count_frameworks_for_idea(steps)
             
             for framework, count in framework_counts.items():
-                if framework == 'Disciplined Entrepreneurship':
+                if framework == 'disciplined-entrepreneurship':
                     de_completion_total += count
                     de_ideas_count += 1
-                elif framework == 'Startup Tactics':
+                elif framework == 'startup-tactics':
                     st_completion_total += count
                     st_ideas_count += 1
         
@@ -119,16 +119,16 @@ class EngagementAnalyzer:
         
         # Calculate framework-specific averages
         if de_ideas_count > 0:
-            completion_stats['completion_by_framework']['Disciplined Entrepreneurship']['avg_completion'] = (
+            completion_stats['completion_by_framework']['disciplined-entrepreneurship']['avg_completion'] = (
                 de_completion_total / de_ideas_count
             )
-            completion_stats['completion_by_framework']['Disciplined Entrepreneurship']['total_ideas'] = de_ideas_count
+            completion_stats['completion_by_framework']['disciplined-entrepreneurship']['total_ideas'] = de_ideas_count
         
         if st_ideas_count > 0:
-            completion_stats['completion_by_framework']['Startup Tactics']['avg_completion'] = (
+            completion_stats['completion_by_framework']['startup-tactics']['avg_completion'] = (
                 st_completion_total / st_ideas_count
             )
-            completion_stats['completion_by_framework']['Startup Tactics']['total_ideas'] = st_ideas_count
+            completion_stats['completion_by_framework']['startup-tactics']['total_ideas'] = st_ideas_count
         
         # Convert defaultdict to regular dict
         completion_stats['step_distribution'] = dict(completion_stats['step_distribution'])

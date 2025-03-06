@@ -169,3 +169,15 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Ignore .vscode setup
+.vscode
+
+# Ignore keys
+keys.py
+
+# Ignore logs, data input, and data output folders
+data
+data_analysis/logs
+data_analysis/data
+data_analysis/output
