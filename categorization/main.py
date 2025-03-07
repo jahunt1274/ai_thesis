@@ -44,6 +44,17 @@ def main():
         help='Maximum number of concurrent workers for batch processing'
     )
     parser.add_argument(
+        '--max-tokens',
+        type=int,
+        default=125000,
+        help='Maximum tokens per request (will be used to determine batch sizes)'
+    )
+    parser.add_argument(
+        '--skip-delay',
+        action='store_true',
+        help='Calculate delay based on rate limits and token count'
+    )
+    parser.add_argument(
         '--sequential', 
         action='store_true', 
         help='Process batches sequentially instead of in parallel'
@@ -67,8 +78,10 @@ def main():
     logger.info(f"Input file: {args.input}")
     logger.info(f"Output directory: {args.output_dir}")
     logger.info(f"Batch size: {args.batch_size}")
+    logger.info(f"Max tokens per request: {args.max_tokens}")
     logger.info(f"Processing mode: {'Sequential' if args.sequential else 'Parallel'}")
     
+
     # Initialize categorizer
     categorizer = IdeaCategorizer(
         input_file=args.input,
@@ -79,7 +92,8 @@ def main():
         categories=IDEA_CATEGORIES,
         logger=logger,
         is_batch=not args.sequential,
-        max_workers=args.max_workers
+        max_workers=args.max_workers,
+        skip_delay=args.skip_delay
     )
     
     # Enable test mode if requested

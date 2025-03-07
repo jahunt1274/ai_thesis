@@ -2,6 +2,8 @@ import time
 import json
 import random
 from openai import OpenAI
+from .prompt_handler import PromptHandler
+from .token_analyzer import TokenCounter
 
 class OpenAIClient:
     """Handles interactions with the OpenAI API."""
@@ -19,6 +21,8 @@ class OpenAIClient:
         self.model = model
         self.logger = logger
         self.test_mode = False  # Flag to toggle test mode
+        self.prompt_handler = PromptHandler()
+        self.token_counter = TokenCounter(model)
 
         # Timing metrics storage
         self.metrics = {
@@ -27,7 +31,8 @@ class OpenAIClient:
             "total_tokens": 0,
             "total_prompt_tokens": 0,
             "total_completion_tokens": 0,
-            "total_payload_size": 0
+            "total_payload_size": 0,
+            "total_cost": 0.0
         }
     
     def set_test_mode(self, enabled=True):
@@ -50,14 +55,23 @@ class OpenAIClient:
             return self._dummy_categorize(batch, categories)
         
         batch_content = json.dumps(batch, indent=2)
-        prompt = self._build_categorization_prompt(batch_content, categories)
+        prompt = self.prompt_handler.create_idea_categorization_prompt(categories, batch_content)
 
         # Calculate payload size in bytes
         payload_size = len(prompt.encode('utf-8'))
         
+        # Estimate tokens in advance
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant for categorizing startup ideas."},
+            {"role": "user", "content": prompt}
+        ]
+        estimated_prompt_tokens = self.token_counter.count_message_tokens(messages)
+        estimated_completion_tokens = self.token_counter.estimate_idea_response_tokens(len(batch))
+
+        
         batch_info = f"Batch {batch_num}" if batch_num is not None else "Batch"
         if self.logger:
-            self.logger.info(f"{batch_info} in progress")
+            self.logger.info(f"{batch_info} in progress - Est. tokens: {estimated_prompt_tokens} input, {estimated_completion_tokens} output")
         
         # Record request time
         start_time = time.time()
@@ -65,10 +79,7 @@ class OpenAIClient:
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant for categorizing startup ideas."},
-                    {"role": "user", "content": prompt}
-                ],
+                messages=messages,
                 temperature=0.0
             )
 
@@ -76,10 +87,14 @@ class OpenAIClient:
             end_time = time.time()
             response_time = end_time - start_time
 
-            # TODO calculate prompt_tokens and response_tokens for visualization?
             # Calculate tokens per second
             total_tokens = response.usage.total_tokens
             tokens_per_second = total_tokens / response_time if response_time > 0 else 0
+
+            # Calculate cost
+            input_tokens = response.usage.prompt_tokens
+            output_tokens = response.usage.completion_tokens
+            batch_cost = self.token_counter.calculate_batch_cost(input_tokens, output_tokens)
 
             # Store metrics for this request
             request_metrics = {
@@ -90,7 +105,8 @@ class OpenAIClient:
                 "total_tokens": total_tokens,
                 "payload_size": payload_size,
                 "tokens_per_second": tokens_per_second,
-                "ideas_count": len(batch)
+                "ideas_count": len(batch),
+                "cost": batch_cost
             }
 
             # Update aggregate metrics
@@ -100,6 +116,7 @@ class OpenAIClient:
             self.metrics["total_prompt_tokens"] += response.usage.prompt_tokens
             self.metrics["total_completion_tokens"] += response.usage.completion_tokens
             self.metrics["total_payload_size"] += payload_size
+            self.metrics["total_cost"] += batch_cost
 
             if self.logger:
                 self.logger.info(
@@ -108,7 +125,6 @@ class OpenAIClient:
                     f"Payload: {payload_size/1024:.2f} KB"
                 )
             
-            # TODO Check what is being returned
             return response.choices[0].message.content, response.usage.completion_tokens, response, request_metrics
             
         except Exception as e:
@@ -125,36 +141,15 @@ class OpenAIClient:
                 "response_time": response_time,
                 "error": str(e),
                 "payload_size": payload_size,
-                "ideas_count": len(batch)
+                "ideas_count": len(batch),
+                "estimated_prompt_tokens": estimated_prompt_tokens,
+                "estimated_completion_tokens": estimated_completion_tokens
             }
             self.metrics["requests"].append(error_metrics)
             self.metrics["total_time"] += response_time
             self.metrics["total_payload_size"] += payload_size
 
             raise
-    
-    def _build_categorization_prompt(self, batch_content, categories):
-        """
-        Build the prompt for idea categorization.
-        
-        Args:
-            batch_content: JSON string of idea batch
-            categories: List of available categories
-            
-        Returns:
-            str: Formatted prompt
-        """
-        return (
-            "You are an expert startup idea categorizer. "
-            "Categorize each of the following ideas into one of the given categories.\n\n"
-            f"Categories: {categories}\n\n"
-            "Do not create additional categories outside of the given list. "
-            "For each idea, return an object with the original '_id', and an additional field 'category' indicating the chosen category. "
-            "Return your answer as a JSON array of objects with the following structure:\n"
-            '{ "_id": original id, "category": chosen category }\n\n'
-            "Here are the ideas:\n"
-            f"{batch_content}"
-        )
     
     def _dummy_categorize(self, batch, categories):
         """
@@ -184,7 +179,17 @@ class OpenAIClient:
         # Simulate API response
         dummy_json = json.dumps(dummy_results)
         payload_size = len(dummy_json.encode('utf-8'))
-        dummy_tokens = len(dummy_json) // 4  # Rough approximation
+
+        # Estimate token counts using the token counter
+        estimated_prompt_tokens = self.token_counter.estimate_categorization_prompt_tokens(batch, categories)
+        estimated_completion_tokens = self.token_counter.estimate_idea_response_tokens(len(batch))
+        dummy_tokens = estimated_prompt_tokens + estimated_completion_tokens
+
+        # Calculate simulated cost
+        dummy_cost = self.token_counter.calculate_batch_cost(
+            estimated_prompt_tokens, 
+            estimated_completion_tokens
+        )
         
         # Create timing info
         request_metrics = {
@@ -194,7 +199,8 @@ class OpenAIClient:
             "total_tokens": dummy_tokens,
             "payload_size": payload_size,
             "tokens_per_second": dummy_tokens / response_time,
-            "ideas_count": len(batch)
+            "ideas_count": len(batch),
+            "cost": dummy_cost
         }
 
         # Update aggregate metrics
@@ -204,6 +210,7 @@ class OpenAIClient:
         self.metrics["total_prompt_tokens"] += dummy_tokens // 2
         self.metrics["total_completion_tokens"] += dummy_tokens // 2
         self.metrics["total_payload_size"] += payload_size
+        self.metrics["total_cost"] += dummy_cost
         
         # Create a dummy response object with a usage attribute
         class DummyUsage:
@@ -211,7 +218,7 @@ class OpenAIClient:
                 self.total_tokens = tokens
                 self.prompt_tokens = tokens // 2
                 self.completion_tokens = tokens // 2
-                
+        
         class DummyResponse:
             def __init__(self, tokens):
                 self.usage = DummyUsage(tokens)
@@ -222,6 +229,7 @@ class OpenAIClient:
             self.logger.info(
                 f"Dummy request completed in {response_time:.2f}s - "
                 f"{dummy_tokens} tokens ({dummy_tokens / response_time:.2f} tokens/s) - "
+                f"Cost: ${dummy_cost:.4f} - "
                 f"Payload: {payload_size/1024:.2f} KB"
             )
         
@@ -245,5 +253,6 @@ class OpenAIClient:
             self.metrics["avg_response_time"] = sum(r["response_time"] for r in successful_requests) / len(successful_requests)
             self.metrics["avg_tokens"] = sum(r["total_tokens"] for r in successful_requests) / len(successful_requests)
             self.metrics["avg_payload_size"] = sum(r["payload_size"] for r in successful_requests) / len(successful_requests)
+            self.metrics["avg_cost"] = sum(r["cost"] for r in successful_requests) / len(successful_requests)
         
         return self.metrics
