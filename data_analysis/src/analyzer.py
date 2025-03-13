@@ -7,7 +7,7 @@ import time
 import json
 from typing import Dict, List, Any, Optional, Tuple
 
-from config import OUTPUT_DIR
+from config import OUTPUT_DIR, ANALYSIS_RESULTS_DIR, COMBINED_RESULTS_DIR
 from src.loaders import DataLoader
 from src.processors import (
     DemographicAnalyzer, 
@@ -260,25 +260,38 @@ class Analyzer:
         """Save analysis results to files."""
         # Save combined results
         results_file = self.file_handler.generate_filename(
-            self.output_dir,
+            # self.output_dir,
+            COMBINED_RESULTS_DIR,
             prefix="analysis_results",
             suffix="combined"
         )
+        latest_results_file = self.file_handler.generate_filename(
+            # self.output_dir,
+            COMBINED_RESULTS_DIR,
+            prefix="analysis_results",
+            suffix="combined_latest",
+            add_timestamp=False
+        )
         self.file_handler.save_json(self.analysis_results, results_file)
+        self.file_handler.save_json(self.analysis_results, latest_results_file)
         logger.info(f"Saved combined results to {results_file}")
         
         # Save individual component results
         for component, results in self.analysis_results.items():
+            component_output_dir = f"{ANALYSIS_RESULTS_DIR}/{component}"
             component_file = self.file_handler.generate_filename(
-                self.output_dir,
+                # self.output_dir,
+                component_output_dir,
                 prefix=f"analysis_{component}"
             )
             self.file_handler.save_json(results, component_file)
             logger.info(f"Saved {component} results to {component_file}")
         
         # Save performance metrics
+        metrics_output_dir = f"{self.output_dir}/performance_metrics"
         metrics_file = self.file_handler.generate_filename(
-            self.output_dir,
+            # self.output_dir,
+            metrics_output_dir,
             prefix="performance_metrics"
         )
         self.file_handler.save_json(self.performance_metrics, metrics_file)

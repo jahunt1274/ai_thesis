@@ -7,4 +7,5 @@ from src.visualizers.demographic_visualizer import DemographicVisualizer
 from src.visualizers.usage_visualizer import UsageVisualizer
 from src.visualizers.engagement_visualizer import EngagementVisualizer
 from src.visualizers.categorization_visualizer import CategorizationVisualizer
+from src.visualizers.cohort_visualizer import CohortVisualizer
 from src.visualizers.visualization_manager import VisualizationManager

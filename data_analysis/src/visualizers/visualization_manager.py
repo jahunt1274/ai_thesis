@@ -10,6 +10,7 @@ from src.visualizers.demographic_visualizer import DemographicVisualizer
 from src.visualizers.usage_visualizer import UsageVisualizer
 from src.visualizers.engagement_visualizer import EngagementVisualizer
 from src.visualizers.categorization_visualizer import CategorizationVisualizer
+from src.visualizers.cohort_visualizer import CohortVisualizer
 
 logger = get_logger("visualization_manager")
 
@@ -37,7 +38,8 @@ class VisualizationManager:
             "demographics": DemographicVisualizer(vis_output_dir, format),
             "usage": UsageVisualizer(vis_output_dir, format),
             "engagement": EngagementVisualizer(vis_output_dir, format),
-            "categorization": CategorizationVisualizer(vis_output_dir, format)
+            "categorization": CategorizationVisualizer(vis_output_dir, format),
+            "cohorts": CohortVisualizer(vis_output_dir, format)
         }
         
         logger.info(f"Initialized VisualizationManager with output directory: {vis_output_dir}")

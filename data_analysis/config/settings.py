@@ -14,8 +14,27 @@ DATA_DIR = os.environ.get('AI_THESIS_DATA_DIR', str(PROJECT_ROOT / 'data'))
 OUTPUT_DIR = os.environ.get('AI_THESIS_OUTPUT_DIR', str(PROJECT_ROOT / 'output'))
 LOG_DIR = os.environ.get('AI_THESIS_LOG_DIR', str(PROJECT_ROOT / 'logs'))
 
+# Define path for analysis results relative to the output directory
+ANALYSIS_RESULTS_DIR = os.environ.get('AI_THESIS_ANALYSIS_RESULTS_DIR', str(Path(OUTPUT_DIR) / 'analysis_results'))
+
+# Define paths for individual analysis results relative to output directory
+CATEGORIZATION_RESULTS_DIR = os.environ.get('AI_THESIS_ANALYSIS_RESULTS_DIR', str(Path(ANALYSIS_RESULTS_DIR) / 'categorization'))
+DEMOGRAPHICS_RESULTS_DIR = os.environ.get('AI_THESIS_DEMOGRAPHICS_RESULTS_DIR', str(Path(ANALYSIS_RESULTS_DIR) / 'demographics'))
+ENGAGEMENT_RESULTS_DIR = os.environ.get('AI_THESIS_ENGAGEMENT_RESULTS_DIR', str(Path(ANALYSIS_RESULTS_DIR) / 'engagement'))
+USAGE_RESULTS_DIR = os.environ.get('USAGE_RESULTS_DIR', str(Path(ANALYSIS_RESULTS_DIR) / 'usage'))
+COMBINED_RESULTS_DIR = os.environ.get('AI_THESIS_COMBINED_RESULTS_DIR', str(Path(ANALYSIS_RESULTS_DIR) / 'combined'))
+
 # Ensure directories exist
-for directory in [DATA_DIR, OUTPUT_DIR, LOG_DIR]:
+for directory in [
+    DATA_DIR, 
+    OUTPUT_DIR, 
+    LOG_DIR,
+    ANALYSIS_RESULTS_DIR,
+    CATEGORIZATION_RESULTS_DIR,
+    DEMOGRAPHICS_RESULTS_DIR,
+    ENGAGEMENT_RESULTS_DIR,
+    COMBINED_RESULTS_DIR
+]:
     Path(directory).mkdir(exist_ok=True, parents=True)
 
 # File Configuration

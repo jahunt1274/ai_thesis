@@ -79,7 +79,8 @@ class FileHandler:
             output_dir: str, 
             prefix: Optional[str] = None, 
             suffix: Optional[str] = None, 
-            extension: str = "json") -> str:
+            extension: str = "json",
+            add_timestamp: bool = True) -> str:
         """
         Generate a timestamped filename.
         
@@ -100,7 +101,8 @@ class FileHandler:
         if prefix:
             filename_parts.append(prefix)
         
-        filename_parts.append(timestamp)
+        if add_timestamp:
+            filename_parts.append(timestamp)
         
         if suffix:
             filename_parts.append(suffix)
