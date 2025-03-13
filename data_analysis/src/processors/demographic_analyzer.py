@@ -1,10 +1,10 @@
 """
 Demographic analyzer for the AI thesis analysis.
 """
-
+import ast
 from collections import defaultdict
 from typing import Dict, List, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from src.utils import get_logger
 
@@ -255,28 +255,70 @@ class DemographicAnalyzer:
             Number of days since last login, or None if unavailable
         """
         last_login = user.get('last_login')
+    
+        # Make sure end_date has timezone info (use UTC)
+        # end_date = datetime.now(timezone.utc)
+        end_date = datetime(2025, 2, 4, tzinfo=timezone.utc) # Setting end date to be the date when the data was received
+        # end_date = 1738645200
+        
         if not last_login:
             return None
         
         try:
-            # Parse last login date
-            if 'T' in last_login:
-                # ISO format
-                login_date = datetime.fromisoformat(last_login.replace('Z', '+00:00'))
-            else:
-                # Try to parse with various formats
-                for fmt in ["%Y-%m-%d", "%Y/%m/%d", "%m/%d/%Y", "%d/%m/%Y"]:
-                    try:
-                        login_date = datetime.strptime(last_login, fmt)
-                        break
-                    except ValueError:
-                        continue
+            # Case 1 & 2: Integer or string representing epoch time
+            if isinstance(last_login, (int, float)) or (isinstance(last_login, str) and last_login.isdigit()):
+                epoch_time = float(last_login)
+                # Check if the number needs to be divided by 1000 (milliseconds to seconds)
+                if epoch_time > 1e11:  # Large values likely represent milliseconds
+                    epoch_time /= 1000
+                # Use fromtimestamp with timezone to get aware datetime
+                login_date = datetime.fromtimestamp(epoch_time, tz=timezone.utc)
+            
+            # Case 3: Dict with $numberLong key
+            elif isinstance(last_login, dict) and '$numberLong' in last_login:
+                epoch_time = float(last_login['$numberLong'])
+                # Check if the number needs to be divided by 1000 (milliseconds to seconds)
+                if epoch_time > 1e11:  # Large values likely represent milliseconds
+                    epoch_time /= 1000
+                login_date = datetime.fromtimestamp(epoch_time, tz=timezone.utc)
+            
+            # Case 4: Dict with $date key containing ISO format string
+            elif isinstance(last_login, dict) and '$date' in last_login:
+                date_str = last_login['$date']
+                login_date = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+            
+            # Case where last_login is a string but not a numeric string
+            elif isinstance(last_login, str):
+                # Check if it's an ISO format string
+                if 'T' in last_login:
+                    login_date = datetime.fromisoformat(last_login.replace('Z', '+00:00'))
+                # Case where last_login is a string of dict with key '$numberLong"
+                elif "$numberLong" in last_login:
+                    login_dict = ast.literal_eval(last_login)
+                    epoch_time = float(login_dict["$numberLong"])
+                    if epoch_time > 1e11:  # Large values likely represent milliseconds
+                        epoch_time /= 1000
+                    login_date = datetime.fromtimestamp(epoch_time, tz=timezone.utc)
                 else:
-                    return None  # Could not parse date
+                    # For date-only formats, create a naive datetime then make it aware
+                    for fmt in ["%Y-%m-%d", "%Y/%m/%d", "%m/%d/%Y", "%d/%m/%Y"]:
+                        try:
+                            naive_date = datetime.strptime(last_login, fmt)
+                            login_date = naive_date.replace(tzinfo=timezone.utc)
+                            break
+                        except ValueError:
+                            continue
+                    else:
+                        return None  # Could not parse with any format
+            
+            else:
+                return None  # Unrecognized format
             
             # Calculate days since login
-            days_since = (datetime.now() - login_date).days
+            days_since = (end_date - login_date).days
             return days_since
-        
-        except (ValueError, TypeError):
+            
+        except (ValueError, TypeError, OverflowError) as e:
+            # For debugging, log the specific error
+            print(f"Error parsing date: {e}")
             return None
