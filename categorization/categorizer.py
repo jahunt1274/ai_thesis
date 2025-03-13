@@ -10,6 +10,7 @@ from utils.file_handler import FileHandler
 from batch_manager import BatchManager
 from api.openai_client import OpenAIClient
 from api.response_processor import ResponseProcessor
+from api.token_analyzer import TokenCounter
 
 class IdeaCategorizer:
     """Main class that orchestrates the idea categorization process."""
@@ -24,7 +25,8 @@ class IdeaCategorizer:
             categories,
             logger=None,
             is_batch=True,
-            max_workers=2
+            max_workers=2,
+            skip_delay = True
         ):
         """
         Initialize the idea categorizer.
@@ -48,10 +50,15 @@ class IdeaCategorizer:
         self.max_workers = max_workers
         self.model = model
         self.categories = categories
+        self.skip_delay =skip_delay
         
         # Initialize components
+        self.token_counter = TokenCounter(model)
         self.file_handler = FileHandler()
-        self.batch_manager = BatchManager(logger)
+        self.batch_manager = BatchManager(
+            logger=logger, 
+            token_counter=self.token_counter
+        )
         self.openai_client = OpenAIClient(api_key, model, logger)
         self.response_processor = ResponseProcessor(logger)
         
@@ -60,6 +67,7 @@ class IdeaCategorizer:
         self.results = []
         self.ideas_to_retry = []
         self.retry_count = 0
+        self.min_delay = 1.0
         
         # Initialize performance metrics
         self.performance_metrics = {
@@ -71,7 +79,14 @@ class IdeaCategorizer:
             "retry_time": 0,
             "saving_time": 0,
             "batch_metrics": {},
-            "timing_data": []
+            "timing_data": [],
+            "token_metrics": {
+                "total_tokens": 0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "total_cost": 0.0,
+                "token_distribution": {}
+            }
         }
         
         # Set up output files
@@ -139,6 +154,7 @@ class IdeaCategorizer:
         """Save the performance metrics to a JSON file."""
         # Get API metrics
         api_metrics = self.openai_client.get_metrics()
+        batch_stats = self.batch_manager.get_batch_stats()
         
         # Combine with our metrics
         combined_metrics = {
@@ -183,7 +199,9 @@ class IdeaCategorizer:
                 "output_file": self.output_file
             },
             "batch_metrics": self.performance_metrics["batch_metrics"],
-            "batch_timing": self.performance_metrics["timing_data"]
+            "batch_timing": self.performance_metrics["timing_data"],
+            "token_stats": self.performance_metrics["token_metrics"],
+            "batch_stats": batch_stats
         }
         
         # Save to file
@@ -192,7 +210,7 @@ class IdeaCategorizer:
         if self.logger:
             self.logger.info(f"Performance metrics saved to {self.metrics_file}")
     
-    def process_batch(self, batch, batch_num):
+    def process_single_batch(self, batch, batch_num):
         """
         Process a single batch of ideas.
         
@@ -250,7 +268,13 @@ class IdeaCategorizer:
                 "processing_time": process_time,
                 "status": "success",
                 "processed_ideas": len(batch_results),
-                "api_metrics": request_metrics
+                "api_metrics": request_metrics,
+                "token_metrics": {
+                    "input_tokens": request_metrics["prompt_tokens"],
+                    "output_tokens": request_metrics["completion_tokens"],
+                    "total_tokens": request_metrics["total_tokens"],
+                    "cost": request_metrics.get("cost", 0.0)
+                }
             })
 
             self.performance_metrics["batch_metrics"][batch_num] = batch_metrics
@@ -261,7 +285,12 @@ class IdeaCategorizer:
                     f"Batch {batch_num} completed in {self.format_time_delta(batch_metrics['total_time'])} "
                     f"(API: {self.format_time_delta(request_metrics['response_time'])}, "
                     f"Processing: {self.format_time_delta(process_time)})"
-                )            
+                )
+                current_batch_data = self.batch_manager.batch_data["batches"][batch_num]
+                if current_batch_data['estimated_prompt_tokens']:
+                    self.logger.info(f"Batch {batch_num} estimated prompt tokens: {current_batch_data['estimated_prompt_tokens']}")
+                if current_batch_data['estimated_completion_tokens']:
+                    self.logger.info(f"Batch {batch_num} estimated completion tokens: {current_batch_data['estimated_completion_tokens']}")
             
             return batch_results, False
             
@@ -291,8 +320,13 @@ class IdeaCategorizer:
         """
         process_start = time.time()
         
-        # Create batches based on text length
-        batches = self.batch_manager.create_batches_by_text_limit(ideas, batch_size)
+        # TODO Figure out how many tokens per batch based on response time and tpm/rpm limits
+        # Create batches based on token limits
+        batches = self.batch_manager.create_batches_by_token_limit(ideas, self.categories)
+        
+        # If token batching failed or returned empty, fall back to text-based batching
+        if not batches:
+            batches = self.batch_manager.create_batches_by_text_limit(ideas, batch_size)
         
         # Create a directory for partial responses
         partial_responses_dir = os.path.join(self.output_dir, "partial_responses")
@@ -309,12 +343,25 @@ class IdeaCategorizer:
         batch_info_filepath = os.path.join(self.output_dir, "batches.json")
         self.file_handler.save_json(batches, batch_info_filepath)
         
+        # Calculate rate limit delay if needed
+        min_delay = self.min_delay if self.skip_delay else self.calculate_delay_from_batch_size(batches)
+ 
+        
         # Process batches in parallel
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             future_to_batchnum = {
-                executor.submit(self.process_batch, batch, i+1): i+1 
+                executor.submit(self.process_single_batch, batch, i+1): i+1 
                 for i, batch in enumerate(batches)
             }
+            
+            # Submit initial batch of tasks (up to max_workers)
+            initial_batches = min(self.max_workers, len(batches))
+            for i in range(initial_batches):
+                future = executor.submit(self.process_single_batch, batches[i], i+1)
+                future_to_batchnum[future] = i+1
+            
+            # Track the next batch to submit
+            next_batch_idx = initial_batches
             
             for future in concurrent.futures.as_completed(future_to_batchnum):
                 batch_number = future_to_batchnum[future]
@@ -343,6 +390,16 @@ class IdeaCategorizer:
                         self.logger.error(f"Batch {batch_number} generated an exception: {e}")
                     self.handle_retry(batches[batch_number-1], batch_number)
         
+                # Submit next batch if available
+                if next_batch_idx < len(batches):
+                    # Apply rate limiting delay if needed
+                    if min_delay > 0:
+                        time.sleep(min_delay)
+                        
+                    future = executor.submit(self.process_single_batch, batches[next_batch_idx], next_batch_idx+1)
+                    future_to_batchnum[future] = next_batch_idx+1
+                    next_batch_idx += 1
+        
         process_end = time.time()
         self.performance_metrics["processing_time"] += (process_end - process_start)
         
@@ -359,17 +416,25 @@ class IdeaCategorizer:
         """
         process_start = time.time()
         
-        batches = self.batch_manager.create_simple_batches(ideas, batch_size)
+        # Create batches based on token limits
+        batches = self.batch_manager.create_batches_by_token_limit(ideas, self.categories)
+        
+        # If token batching failed or returned empty, fall back to text-based batching
+        if not batches:
+            batches = self.batch_manager.create_simple_batches(ideas, batch_size)
         
         if self.logger:
             self.logger.info(f"Created {len(batches)} batches for sequential processing")
         
+        # Calculate rate limit delay if needed
+        min_delay = self.min_delay if self.skip_delay else self.calculate_delay_from_batch_size(batches)
+
         for i, batch in enumerate(batches):
             batch_num = i + 1
             if self.logger:
                 self.logger.info(f"Processing batch {batch_num}...")
             
-            batch_results, should_retry = self.process_batch(batch, batch_num)
+            batch_results, should_retry = self.process_single_batch(batch, batch_num)
             
             if should_retry:
                 self.handle_retry(batch, batch_num)
@@ -378,13 +443,59 @@ class IdeaCategorizer:
             if batch_results:
                 self.results.extend(batch_results)
             
-            # Pause between requests to respect rate limits
-            time.sleep(1)
+            # Apply rate limiting delay
+            delay = max(min_delay, 1.0)  # Use at least 1 second between requests
+            if self.logger:
+                self.logger.info(f"Waiting {delay:.2f} seconds before next request (rate limiting)")
+            time.sleep(delay)
         
         process_end = time.time()
         self.performance_metrics["processing_time"] += (process_end - process_start)
         
         self.save_results()
+    
+    def calculate_delay_from_batch_size(self, batches):
+        """
+        Calculate delay based on rate limit and batch size.
+        
+        Args:
+            batches: list of batches to be processed
+        
+        Returns:
+            Recommended minimum delay in seconds
+        """
+        rate_limits = self.token_counter.get_rate_limits()
+        if self.logger:
+            self.logger.info(f"Rate limits for {self.model}: {rate_limits['tpm']} tokens/min, {rate_limits['rpm']} requests/min")
+        
+        # Estimate tokens per batch
+        avg_batch_size = sum(len(batch) for batch in batches) / len(batches) if batches else 0
+        estimated_tokens_per_batch = avg_batch_size * 1000  # Rough estimate: ~1000 tokens per idea
+        
+        # Calculate minimum delay between requests
+        min_delay = 0
+        if avg_batch_size > 0:
+            # Get batch sizes for rate limit calculation
+            batch_sizes = []
+            for i, batch in enumerate(batches):
+                if i+1 in self.batch_manager.batch_data["batches"]:
+                    batch_data = self.batch_manager.batch_data["batches"][i+1]
+                    if "token_count" in batch_data and batch_data["token_count"] > 0:
+                        batch_sizes.append(batch_data["token_count"])
+                    else:
+                        # Use estimated token count
+                        batch_sizes.append(estimated_tokens_per_batch)
+            
+            # Calculate delay
+            if batch_sizes:
+                min_delay = self.token_counter.calculate_rate_limit_delay(batch_sizes)
+                if self.logger:
+                    self.logger.info(f"Calculated minimum delay between requests: {min_delay:.2f} seconds")
+            else:
+                # Default to a safe delay if we can't calculate
+                min_delay = self.min_delay
+        
+        return min_delay
     
     def handle_retry(self, batch, batch_number):
         """
@@ -456,6 +567,7 @@ class IdeaCategorizer:
         # Log final statistics
         if self.logger:
             batch_stats = self.batch_manager.get_batch_stats()
+            api_metrics = self.openai_client.get_metrics()
             
             self.logger.info(f"Categorization complete!")
             self.logger.info(f"Total processed ideas: {len(self.results)} of {len(self.ideas)}")
@@ -465,6 +577,15 @@ class IdeaCategorizer:
             self.logger.info(f"  - Input tokens: {batch_stats['input_token_count']}")
             self.logger.info(f"  - Output tokens: {batch_stats['output_token_count']}")
             self.logger.info(f"  - Total tokens: {batch_stats['total_token_count']}")
+            self.logger.info(f"  - Estimated cost: ${batch_stats.get('estimated_cost', 0.0):.4f}")
+            
+            # Log API statistics
+            self.logger.info(f"API metrics:")
+            self.logger.info(f"  - Total tokens: {api_metrics['input_token_count']}")
+            self.logger.info(f"  - Total prompt tokens: {api_metrics['total_prompt_tokens']}")
+            self.logger.info(f"  - Total completion tokens: {api_metrics['total_completion_tokens']}")
+            self.logger.info(f"  - Total payload size: {api_metrics['total_payload_size']}")
+            self.logger.info(f"  - Actual cost: ${api_metrics.get('total_cost', 0.0):.4f}")
             
             # Calculate and log throughput
             ideas_per_second = len(self.results) / self.performance_metrics["total_runtime"]

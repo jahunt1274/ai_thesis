@@ -8,6 +8,12 @@ from config.settings import (
     DATA_DIR,
     OUTPUT_DIR,
     LOG_DIR,
+    ANALYSIS_RESULTS_DIR,
+    CATEGORIZATION_RESULTS_DIR,
+    DEMOGRAPHICS_RESULTS_DIR,
+    ENGAGEMENT_RESULTS_DIR,
+    USAGE_RESULTS_DIR,
+    COMBINED_RESULTS_DIR,
     
     # File configurations
     USER_DATA_FILE,

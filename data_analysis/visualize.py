@@ -14,7 +14,7 @@ import sys
 import json
 from typing import Dict, Any
 
-from config import OUTPUT_DIR
+from config import OUTPUT_DIR, COMBINED_RESULTS_DIR
 from src.utils import get_logger, FileHandler
 from src.visualizers import VisualizationManager
 
@@ -28,8 +28,10 @@ def parse_arguments() -> argparse.Namespace:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     
-    parser.add_argument("--results-file", "-r", type=str, required=True,
-        help="Path to analysis results JSON file")
+    parser.add_argument("--results-file", "-r", type=str, 
+        # required=True,
+        default=None,
+        help="Path to analysis results JSON file (defaults to 'output/analysis_results/combined/analysis_results_combined_latest.json')")
     
     parser.add_argument("--output-dir", "-o", type=str, default=None,
         help="Directory to save visualizations (defaults to 'output/visualizations')")
@@ -55,10 +57,14 @@ def main() -> int:
     # Ensure output directory exists
     os.makedirs(args.output_dir, exist_ok=True)
     
-    # Check if results file exists
-    if not os.path.exists(args.results_file):
-        logger.error(f"Results file not found: {args.results_file}")
-        return 1
+    # # Check if results file exists
+    # if not os.path.exists(args.results_file):
+    #     logger.error(f"Results file not found: {args.results_file}")
+    #     return 1
+
+    # Set default results file path if not provided
+    if args.results_file is None:
+        args.results_file = os.path.join(COMBINED_RESULTS_DIR, "analysis_results_combined_latest.json")
     
     # Load results file
     try:

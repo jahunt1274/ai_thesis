@@ -1,15 +1,75 @@
+import time
+import json
+from collections import defaultdict
+from typing import List, Dict, Any, Optional
+from api.prompt_handler import PromptHandler
+
 class BatchManager:
     """Manages the creation and tracking of idea batches for processing."""
     
-    def __init__(self, logger=None):
+    def __init__(self, logger=None, token_counter=None):
         self.logger = logger
+        self.token_counter = token_counter
         self.batch_data = {
             "batches": {},
             "total_token_count": 0,
             "total_text_count": 0,
             "input_token_count": 0,
-            "output_token_count": 0
+            "output_token_count": 0,
+            "estimated_cost": 0.0
         }
+    
+    def create_batches_by_token_limit(self, ideas, categories, max_tokens=125000):
+        """
+        Create batches such that each batch doesn't exceed the token limit.
+        
+        Args:
+            ideas: List of idea dictionaries
+            categories: List of available categories
+            max_tokens: Maximum tokens per request (default is lower than most model limits)
+            
+        Returns:
+            List of batches, where each batch is a list of ideas
+        """
+        # Ensure we have a token counter
+        if not self.token_counter:
+            if self.logger:
+                self.logger.warning("No token counter provided, falling back to text-based batching")
+            return self.create_batches_by_text_limit(ideas, 4000)  # Default to ~4000 chars
+            
+        batches = self.token_counter.optimize_batch_size(ideas, categories, max_tokens)
+        
+        if self.logger:
+            self.logger.info(f"Created {len(batches)} batches based on token limits")
+            
+            # Log token counts for each batch
+            for i, batch in enumerate(batches):
+                prompt = PromptHandler().create_idea_categorization_prompt(categories, batch)
+                prompt_tokens = self.token_counter.estimate_categorization_prompt_tokens(prompt)
+                completion_tokens = self.token_counter.estimate_idea_response_tokens(len(batch))
+                
+                self.logger.info(
+                    f"Batch {i+1}: {len(batch)} ideas, ~{prompt_tokens} input tokens, "
+                    f"~{completion_tokens} output tokens, {prompt_tokens + completion_tokens} total tokens"
+                )
+                
+                # Store in batch data for tracking
+                self.batch_data["batches"][i+1] = {
+                    "text_len": len(json.dumps(batch, indent=2)),
+                    "token_count": prompt_tokens + completion_tokens,
+                    "ideas_in_batch": len(batch),
+                    "estimated_prompt_tokens": prompt_tokens,
+                    "estimated_completion_tokens": completion_tokens,
+                    "estimated_cost": self.token_counter.calculate_batch_cost(prompt_tokens, completion_tokens)
+                }
+                
+                # Update totals
+                self.batch_data["total_token_count"] += (prompt_tokens + completion_tokens)
+                self.batch_data["input_token_count"] += prompt_tokens
+                self.batch_data["output_token_count"] += completion_tokens
+                self.batch_data["estimated_cost"] += self.batch_data["batches"][i+1]["estimated_cost"]
+        
+        return batches
     
     def create_batches_by_text_limit(self, ideas, batch_size):
         """
