@@ -2,7 +2,7 @@ from pathlib import Path
 import sys
 
 # Get project root
-PROJECT_ROOT = Path(__file__).parent.parent
+PROJECT_ROOT = Path(__file__).parent
 
 # Add project root to Python path automatically
 if str(PROJECT_ROOT) not in sys.path:
