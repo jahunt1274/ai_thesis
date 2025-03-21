@@ -19,7 +19,7 @@ from config import (
 from src.loaders import DataLoader
 from src.processors.cohort_analyzer import CohortAnalyzer
 from src.visualizers.cohort_visualizer import CohortVisualizer
-from src.utils import get_logger, FileHandler
+from src.utils import get_logger, FileHandler, DataFilter
 
 logger = get_logger("cohort_analysis")
 
@@ -57,6 +57,14 @@ def parse_arguments() -> argparse.Namespace:
         type=str,
         default=os.path.join(OUTPUT_DIR, "cohort_analysis"),
         help="Directory to save output files"
+    )
+
+    # Data filter options
+    parser.add_argument(
+        "--course",
+        type=str,
+        default="15.390",
+        help="Filter analysis to users enrolled in this course"
     )
     
     # Additional options
@@ -111,6 +119,13 @@ def run_cohort_analysis(args: argparse.Namespace) -> Dict[str, Any]:
     # Load data
     data_loader = DataLoader(args.user_file, args.idea_file, args.step_file)
     users, ideas, steps = data_loader.load_and_process_all()
+    
+    # If data filters are present, filter data appropriately
+    if args.course:
+        logger.info(f"Filtering users enrolled in course {args.course}...")
+        users, ideas, steps = DataFilter.filter_by_course(users, ideas, steps, args.course)
+        logger.info(f"Filtered to {len(users)} users, {len(ideas)} ideas, and {len(steps)} steps")
+
     
     # Run cohort analysis
     logger.info("Running cohort analysis...")

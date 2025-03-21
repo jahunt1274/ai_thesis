@@ -350,7 +350,7 @@ class CohortAnalyzer:
         # Focus on course enrollments from the thesis plan
         target_courses = [
             "15.390",  # The main course mentioned in thesis
-            "15.S08",  # An alternate course code possibility
+            # "15.S08",  # An alternate course code possibility
         ]
         
         # Find all course-like enrollments
@@ -540,12 +540,12 @@ class CohortAnalyzer:
                 
                 for idea in user_ideas:
                     # Check Disciplined Entrepreneurship progress
-                    if 'de_progress' in idea:
-                        de_completion.append(idea.get('de_progress', 0))
+                    if 'DE_progress' in idea:
+                        de_completion.append(idea.get('DE_progress', 0))
                     
                     # Check Startup Tactics progress
-                    if 'st_progress' in idea:
-                        st_completion.append(idea.get('st_progress', 0))
+                    if 'ST_progress' in idea:
+                        st_completion.append(idea.get('ST_progress', 0))
             
             # Calculate average completion rates
             avg_de = sum(de_completion) / len(de_completion) if de_completion else 0
@@ -807,11 +807,11 @@ class CohortAnalyzer:
         max_completion = 0
         for idea in user_ideas:
             # Check DE progress
-            de_progress = idea.get('de_progress', 0)
+            de_progress = idea.get('DE_progress', 0)
             max_completion = max(max_completion, de_progress)
             
             # Check ST progress
-            st_progress = idea.get('st_progress', 0)
+            st_progress = idea.get('DE_progress', 0)
             max_completion = max(max_completion, st_progress)
             
             # Check total progress as fallback
