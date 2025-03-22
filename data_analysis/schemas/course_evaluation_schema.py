@@ -1,0 +1,105 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Course Evaluation Schema",
+  "description": "Schema for MIT course evaluation data",
+  "type": "object",
+  "required": ["course_id", "semester", "evaluation_metrics"],
+  "properties": {
+    "course_id": {
+      "type": "string",
+      "description": "Course identifier (e.g., '15.390')"
+    },
+    "semester": {
+      "type": "object",
+      "required": ["term", "year"],
+      "properties": {
+        "term": {
+          "type": "string",
+          "enum": ["fall", "spring", "summer", "winter", "iap"],
+          "description": "Academic term"
+        },
+        "year": {
+          "type": "integer",
+          "description": "Academic year",
+          "minimum": 2000,
+          "maximum": 2100
+        }
+      }
+    },
+    "tool_version": {
+      "type": ["string", "null"],
+      "description": "Version of AI tool used in the course, if any"
+    },
+    "evaluation_metrics": {
+      "type": "array",
+      "description": "Sections of evaluation metrics",
+      "items": {
+        "type": "object",
+        "required": ["section", "scale", "questions"],
+        "properties": {
+          "section": {
+            "type": "string",
+            "description": "Section name (e.g., 'Subject', 'Pace')"
+          },
+          "scale": {
+            "type": "object",
+            "required": ["type"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "description": "Type of scale used in this section",
+                "enum": ["agreement", "pace", "hours", "quality", "extent"]
+              },
+              "best_value": {
+                "type": ["number", "null"],
+                "description": "The optimal value on this scale"
+              },
+              "unit": {
+                "type": ["string", "null"],
+                "description": "Unit of measurement (if applicable)"
+              },
+              "values": {
+                "type": ["object", "null"],
+                "description": "Mapping of scale values to their descriptions",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "questions": {
+            "type": "array",
+            "description": "Evaluation questions in this section",
+            "items": {
+              "type": "object",
+              "required": ["question"],
+              "properties": {
+                "question": {
+                  "type": "string",
+                  "description": "Question text"
+                },
+                "avg": {
+                  "type": ["number", "null"],
+                  "description": "Average response value"
+                },
+                "responses": {
+                  "type": ["integer", "null"],
+                  "description": "Number of responses received",
+                  "minimum": 0
+                },
+                "median": {
+                  "type": ["number", "null"],
+                  "description": "Median response value"
+                },
+                "stdev": {
+                  "type": ["number", "null"],
+                  "description": "Standard deviation of responses"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
