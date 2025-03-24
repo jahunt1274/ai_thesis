@@ -2,9 +2,11 @@
 Data loaders for the AI thesis analysis.
 """
 
+from typing import Dict, List, Any
 from src.loaders.user_loader import UserLoader
 from src.loaders.idea_loader import IdeaLoader
 from src.loaders.step_loader import StepLoader
+from src.loaders.course_eval_loader import CourseEvaluationLoader
 
 
 class DataLoader:
@@ -37,8 +39,35 @@ class DataLoader:
         Returns:
             Tuple of (users, ideas, steps)
         """
-        self.users = self.user_loader.process()
-        self.ideas = self.idea_loader.process()
-        self.steps = self.step_loader.process()
+        self.users = self.load_and_process_users()
+        self.ideas = self.load_and_process_ideas()
+        self.steps = self.load_and_process_steps()
         
         return self.users, self.ideas, self.steps
+    
+    def load_and_process_users(self) -> List[Dict[str, Any]]:
+        """
+        Load and process users.
+        
+        Returns:
+            List of users
+        """
+        self.users = self.user_loader.process()
+    
+    def load_and_process_ideas(self) -> List[Dict[str, Any]]:
+        """
+        Load and process ideas.
+        
+        Returns:
+            List of ideas
+        """
+        self.ideas = self.idea_loader.process()
+    
+    def load_and_process_steps(self) -> List[Dict[str, Any]]:
+        """
+        Load and process steps.
+        
+        Returns:
+            List of steps
+        """
+        self.steps = self.step_loader.process()

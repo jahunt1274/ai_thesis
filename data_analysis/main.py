@@ -11,8 +11,13 @@ import sys
 from typing import Dict, Any
 
 from config import (
-    USER_DATA_FILE, IDEA_DATA_FILE, STEP_DATA_FILE, 
-    OUTPUT_DIR, DEFAULT_MODEL, OPENAI_API_KEY
+    USER_DATA_FILE, 
+    IDEA_DATA_FILE, 
+    STEP_DATA_FILE,
+    COURSE_EVAL_DIR, 
+    OUTPUT_DIR, 
+    DEFAULT_MODEL, 
+    OPENAI_API_KEY
 )
 from src.analyzer import Analyzer
 from src.utils import get_logger
@@ -46,7 +51,13 @@ def parse_arguments() -> argparse.Namespace:
         default=STEP_DATA_FILE,
         help="Path to step data file"
     )
-    
+    parser.add_argument(
+        "--eval-dir",
+        type=str,
+        default=COURSE_EVAL_DIR,
+        help="Directory containing course evaluation files"
+    )
+
     # Output options
     parser.add_argument(
         "--output-dir",
@@ -60,6 +71,11 @@ def parse_arguments() -> argparse.Namespace:
         "--categorize-ideas",
         action="store_true",
         help="Run idea categorization using OpenAI API"
+    )
+    parser.add_argument(
+        "--analyze-evaluations",
+        action="store_true",
+        help="Run course evaluation analysis"
     )
     parser.add_argument(
         "--openai-key",
@@ -101,6 +117,11 @@ def parse_arguments() -> argparse.Namespace:
         action="store_true",
         help="Run only categorization analysis"
     )
+    parser.add_argument(
+        "--evaluations-only",
+        action="store_true",
+        help="Run only course evaluation analysis"
+    )
     
     return parser.parse_args()
 
@@ -129,6 +150,11 @@ def main() -> int:
         logger.error(f"Categorized ideas file not found: {args.categorized_file}")
         return 1
     
+    # Check evaluation directory if evaluation analysis is requested
+    if args.analyze_evaluations and not os.path.exists(args.eval_dir):
+        logger.error(f"Course evaluation directory not found: {args.eval_dir}")
+        return 1
+    
     try:
         # Initialize and run the analyzer
         analyzer = Analyzer(
@@ -139,17 +165,41 @@ def main() -> int:
             categorize_ideas=args.categorize_ideas,
             openai_api_key=args.openai_key,
             openai_model=args.openai_model,
-            categorized_ideas_file=args.categorized_file
+            categorized_ideas_file=args.categorized_file,
+            analyze_evaluations=args.analyze_evaluations,
+            eval_dir=args.eval_dir
         )
 
         # Run only selected analyses if specified
-        if args.demographic_only or args.usage_only or args.engagement_only or args.categorization_only:
+        if (args.demographic_only 
+            or args.usage_only 
+            or args.engagement_only 
+            or args.categorization_only 
+            or args.evaluations_only
+        ):
             logger.info("Running selected analyses only")
-            # Currently not implemented - would need to modify the Analyzer to support partial runs
-            pass
+            
+            # Create a dictionary to track which analyses to run
+            analyses_to_run = {
+                'demographics': args.demographic_only,
+                'usage': args.usage_only,
+                'engagement': args.engagement_only,
+                'categorization': args.categorization_only,
+                'course_evaluations': args.evaluations_only
+            }
+
+            # If none are True but selective flags are used, run none
+            if not any(analyses_to_run.values()):
+                logger.warning("No specific analyses selected, but selective flags used.")
+                return 1
+            
+            # Run selected analyses
+            logger.info(f"Running selected analyses: {[k for k, v in analyses_to_run.items() if v]}")
+            results = analyzer.selective_run(analyses_to_run)
         
-        # Run the analyzer
-        results = analyzer.run()
+        else:
+            # Run the analyzer
+            results = analyzer.run()
         
         logger.info("Analysis completed successfully")
         return 0

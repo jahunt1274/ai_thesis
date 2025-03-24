@@ -14,11 +14,13 @@ from config.settings import (
     ENGAGEMENT_RESULTS_DIR,
     USAGE_RESULTS_DIR,
     COMBINED_RESULTS_DIR,
+    COURSE_EVAL_RESULTS_DIR,
     
     # File configurations
     USER_DATA_FILE,
     IDEA_DATA_FILE,
     STEP_DATA_FILE,
+    COURSE_EVAL_DIR,
     
     # OpenAI configurations
     OPENAI_API_KEY,
@@ -29,6 +31,9 @@ from config.settings import (
     DEFAULT_BATCH_SIZE,
     DEFAULT_MAX_WORKERS,
     IDEA_CATEGORIES,
+
+    # Schema configurations
+    COURSE_EVAL_SCHEMA,
     
     # Logging configurations
     LOG_LEVEL,

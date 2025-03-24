@@ -9,3 +9,4 @@ from src.processors.idea_categorizer import IdeaCategorizer
 from src.processors.idea_category_analyzer import IdeaCategoryAnalyzer
 from src.processors.category_merger import CategoryMerger
 from src.processors.cohort_analyzer import CohortAnalyzer
+from src.processors.course_eval_analyzer import CourseEvaluationAnalyzer

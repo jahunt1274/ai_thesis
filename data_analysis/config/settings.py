@@ -13,6 +13,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.absolute()
 DATA_DIR = os.environ.get('AI_THESIS_DATA_DIR', str(PROJECT_ROOT / 'data'))
 OUTPUT_DIR = os.environ.get('AI_THESIS_OUTPUT_DIR', str(PROJECT_ROOT / 'output'))
 LOG_DIR = os.environ.get('AI_THESIS_LOG_DIR', str(PROJECT_ROOT / 'logs'))
+SCHEMA_DIR = os.environ.get('AI_THESIS_LOG_DIR', str(PROJECT_ROOT / 'schemas'))
 
 # Define path for analysis results relative to the output directory
 ANALYSIS_RESULTS_DIR = os.environ.get('AI_THESIS_ANALYSIS_RESULTS_DIR', str(Path(OUTPUT_DIR) / 'analysis_results'))
@@ -24,6 +25,10 @@ ENGAGEMENT_RESULTS_DIR = os.environ.get('AI_THESIS_ENGAGEMENT_RESULTS_DIR', str(
 USAGE_RESULTS_DIR = os.environ.get('USAGE_RESULTS_DIR', str(Path(ANALYSIS_RESULTS_DIR) / 'usage'))
 COMBINED_RESULTS_DIR = os.environ.get('AI_THESIS_COMBINED_RESULTS_DIR', str(Path(ANALYSIS_RESULTS_DIR) / 'combined'))
 
+# Define paths for course evaluation data
+COURSE_EVAL_DIR = os.environ.get('AI_THESIS_COURSE_EVAL_DIR', str(Path(DATA_DIR) / 'course_evaluations'))
+COURSE_EVAL_RESULTS_DIR = os.environ.get('AI_THESIS_COURSE_EVAL_RESULTS_DIR', str(Path(OUTPUT_DIR) / 'course_eval_analysis'))
+
 # Ensure directories exist
 for directory in [
     DATA_DIR, 
@@ -33,7 +38,9 @@ for directory in [
     CATEGORIZATION_RESULTS_DIR,
     DEMOGRAPHICS_RESULTS_DIR,
     ENGAGEMENT_RESULTS_DIR,
-    COMBINED_RESULTS_DIR
+    COMBINED_RESULTS_DIR,
+    COURSE_EVAL_DIR,
+    COURSE_EVAL_RESULTS_DIR
 ]:
     Path(directory).mkdir(exist_ok=True, parents=True)
 
@@ -119,3 +126,6 @@ IDEA_CATEGORIES = [
 # Logging Configuration
 LOG_LEVEL = os.environ.get('AI_THESIS_LOG_LEVEL', 'INFO')
 LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+
+# Schema configurations
+COURSE_EVAL_SCHEMA = os.environ.get('AI_THESIS_COURSE_EVAL_SCHEMA', str(Path(SCHEMA_DIR) / 'course_evaluation_schema.json'))

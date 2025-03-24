@@ -27,7 +27,8 @@ class LoggerSetup:
     def get_logger(self, 
                    name: str, 
                    log_file: Optional[str] = None,
-                   level: str = LOG_LEVEL) -> logging.Logger:
+                   level: str = LOG_LEVEL
+        ) -> logging.Logger:
         """
         Get a configured logger with both file and console handlers.
         
@@ -46,6 +47,10 @@ class LoggerSetup:
         logger = logging.getLogger(name)
         logger.setLevel(log_level)
         
+        # Create sub-directory for log outputs in log output dir
+        log_sub_dir = Path(self.log_dir / name)
+        log_sub_dir.mkdir(exist_ok=True, parents=True)
+
         # Remove existing handlers to avoid duplicates
         if logger.handlers:
             for handler in logger.handlers[:]:
@@ -58,9 +63,9 @@ class LoggerSetup:
         # Create file handler if log_file specified or generated
         if log_file is None:
             log_file = f"{name}_{datetime.now().strftime('%Y%m%d')}.log"
-        
+
         file_handler = logging.FileHandler(
-            self.log_dir / log_file,
+            log_sub_dir / log_file,
             encoding='utf-8'
         )
         file_handler.setFormatter(file_formatter)
