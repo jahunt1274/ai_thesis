@@ -86,6 +86,9 @@ class Analyzer:
             "component_times": {}
         }
         
+        # Initialize visualization_outputs attribute
+        self.visualization_outputs = {}
+
         # Create output directory
         os.makedirs(output_dir, exist_ok=True)
         

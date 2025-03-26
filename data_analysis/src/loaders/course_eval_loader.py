@@ -124,6 +124,12 @@ class CourseEvaluationLoader:
             term = semester.get('term', '').lower()
             year = semester.get('year')
             
+            # Get or infer the order field
+            order = semester.get('order')
+            if order is None:
+                # If no order is specified, infer it based on term (Spring=1, Fall=2)
+                order = 1 if term == 'spring' else 2
+            
             # Create a semester code for easier sorting and comparison
             semester_code = f"{year}_{term}"
             
@@ -143,7 +149,8 @@ class CourseEvaluationLoader:
                     'term': term,
                     'year': year,
                     'code': semester_code,
-                    'display_name': display_name
+                    'display_name': display_name,
+                    'order': order
                 },
                 'tool_version': tool_version,
                 'evaluation_metrics': eval_data.get('evaluation_metrics', []),

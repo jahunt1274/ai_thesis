@@ -23,6 +23,13 @@
           "description": "Academic year",
           "minimum": 2000,
           "maximum": 2100
+        },
+        "order": {
+          "type": "integer",
+          "description": "Ordering value for the semester (1 for Spring, 2 for Fall)",
+          "enum": [1, 2],
+          "minimum": 1,
+          "maximum": 2
         }
       }
     },
