@@ -1,16 +1,17 @@
 """
-User data loader for the AI thesis analysis.
+User loader for the AI thesis analysis.
 """
 
 from typing import Dict, List, Any, Optional
 
 from config import USER_DATA_FILE
-from src.utils import FileHandler, get_logger
+from src.constants.data_constants import UserDataType
+from src.loaders.base_loader import BaseLoader
+from src.utils import get_logger
 
 logger = get_logger("user_loader")
 
-
-class UserLoader:
+class UserLoader(BaseLoader[UserDataType]):
     """Loads and processes user data."""
     
     def __init__(self, file_path: str = USER_DATA_FILE):
@@ -20,50 +21,9 @@ class UserLoader:
         Args:
             file_path: Path to the user data file
         """
-        self.file_path = file_path
-        self.file_handler = FileHandler()
-        self.raw_users = None
-        self.processed_users = None
+        super().__init__(file_path)
     
-    def load(self) -> List[Dict[str, Any]]:
-        """
-        Load user data from the file.
-        
-        Returns:
-            List of user records
-        """
-        logger.info(f"Loading user data from {self.file_path}")
-        self.raw_users = self.file_handler.load_json(self.file_path)
-        
-        # Check data format
-        if not isinstance(self.raw_users, list):
-            raise ValueError("User data must be a list of objects")
-        
-        logger.info(f"Loaded {len(self.raw_users)} user records")
-        return self.raw_users
-    
-    def process(self) -> List[Dict[str, Any]]:
-        """
-        Process raw user data into a standardized format.
-        
-        Returns:
-            List of processed user records
-        """
-        if self.raw_users is None:
-            self.load()
-        
-        logger.info("Processing user data")
-        self.processed_users = []
-        
-        for user in self.raw_users:
-            processed_user = self._process_user(user)
-            if processed_user:
-                self.processed_users.append(processed_user)
-        
-        logger.info(f"Processed {len(self.processed_users)} user records")
-        return self.processed_users
-    
-    def _process_user(self, user: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _process_item(self, user: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Process a single user record.
         
@@ -76,19 +36,17 @@ class UserLoader:
         try:
             # Basic validation
             if not user:
-                logger.warning("Empty user record")
+                self.logger.warning("Empty user record")
                 return None
             
             # Check for required fields
             for field in ['_id', 'email']:
                 if field not in user:
-                    logger.warning(f"User missing required field: {field}")
+                    self.logger.warning(f"User missing required field: {field}")
                     return None
             
-            # Extract identifier - can be in different formats
-            user_id = user.get('_id')
-            if isinstance(user_id, dict) and '$oid' in user_id:
-                user_id = user_id['$oid']
+            # Extract identifier
+            user_id = self._extract_id(user.get('_id'))
             
             # Extract timestamps with standardized format
             created_date = self._extract_timestamp(user.get('created'))
@@ -124,19 +82,8 @@ class UserLoader:
             return processed_user
             
         except Exception as e:
-            logger.error(f"Error processing user {user.get('_id', 'unknown')}: {str(e)}")
+            self.logger.error(f"Error processing user {user.get('_id', 'unknown')}: {str(e)}")
             return None
-    
-    @staticmethod
-    def _extract_timestamp(timestamp: Any) -> Optional[str]:
-        """Extract timestamp from various formats."""
-        if not timestamp:
-            return None
-            
-        if isinstance(timestamp, dict) and '$date' in timestamp:
-            return timestamp['$date']
-        
-        return str(timestamp)
     
     @staticmethod
     def _extract_affiliations(user: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -204,7 +151,7 @@ class UserLoader:
         return None
     
     @staticmethod
-    def _extract_orbit_profile(user: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _extract_orbit_profile(user: Dict[str, Any]) -> Dict[str, Any]:
         """Extract Orbit profile information from user record."""
         if 'orbitProfile' not in user or not user['orbitProfile']:
             return {}

@@ -2,20 +2,28 @@
 Data loaders for the AI thesis analysis.
 """
 
-from typing import Dict, List, Any
-from src.loaders.user_loader import UserLoader
-from src.loaders.idea_loader import IdeaLoader
-from src.loaders.step_loader import StepLoader
-from src.loaders.course_eval_loader import CourseEvaluationLoader
+from typing import List, Optional, Tuple
 
+from src.constants.data_constants import (
+    UserDataType,
+    IdeaDataType,
+    StepDataType
+)
+from src.loaders.course_eval_loader import CourseEvaluationLoader
+from src.loaders.step_loader import StepLoader
+from src.loaders.idea_loader import IdeaLoader
+from src.loaders.user_loader import UserLoader
+from src.utils import get_logger
+
+logger = get_logger("data_loader")
 
 class DataLoader:
     """Centralized data loader that handles all data types."""
     
     def __init__(self, 
-                 user_file: str = None, 
-                 idea_file: str = None, 
-                 step_file: str = None):
+                user_file: Optional[str] = None, 
+                idea_file: Optional[str] = None, 
+                step_file: Optional[str] = None):
         """
         Initialize the data loader.
         
@@ -32,42 +40,68 @@ class DataLoader:
         self.ideas = None
         self.steps = None
         
-    def load_and_process_all(self):
+        self.logger = get_logger("data_loader")
+    
+    def load_and_process_all(self) -> Tuple[List[UserDataType], List[IdeaDataType], List[StepDataType]]:
         """
         Load and process all data types.
         
         Returns:
             Tuple of (users, ideas, steps)
         """
+        self.logger.info("Loading and processing all data")
+        
+        # Process data in parallel would be more efficient,
+        # but keeping it sequential for simplicity and because
+        # the amount of data is not large
         self.users = self.load_and_process_users()
         self.ideas = self.load_and_process_ideas()
         self.steps = self.load_and_process_steps()
         
+        self.logger.info(f"Loaded {len(self.users)} users, {len(self.ideas)} ideas, {len(self.steps)} steps")
+        
         return self.users, self.ideas, self.steps
     
-    def load_and_process_users(self) -> List[Dict[str, Any]]:
+    def load_and_process_users(self) -> List[UserDataType]:
         """
         Load and process users.
         
         Returns:
-            List of users
+            List of processed users
         """
+        self.logger.info("Loading and processing users")
         self.users = self.user_loader.process()
+        return self.users
     
-    def load_and_process_ideas(self) -> List[Dict[str, Any]]:
+    def load_and_process_ideas(self) -> List[IdeaDataType]:
         """
         Load and process ideas.
         
         Returns:
-            List of ideas
+            List of processed ideas
         """
+        self.logger.info("Loading and processing ideas")
         self.ideas = self.idea_loader.process()
+        return self.ideas
     
-    def load_and_process_steps(self) -> List[Dict[str, Any]]:
+    def load_and_process_steps(self) -> List[StepDataType]:
         """
         Load and process steps.
         
         Returns:
-            List of steps
+            List of processed steps
         """
+        self.logger.info("Loading and processing steps")
         self.steps = self.step_loader.process()
+        return self.steps
+    
+    def get_data(self) -> Tuple[List[UserDataType], List[IdeaDataType], List[StepDataType]]:
+        """
+        Get all loaded data or load it if not already loaded.
+        
+        Returns:
+            Tuple of (users, ideas, steps)
+        """
+        if self.users is None or self.ideas is None or self.steps is None:
+            return self.load_and_process_all()
+        return self.users, self.ideas, self.steps

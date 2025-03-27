@@ -1,16 +1,17 @@
 """
-Step data loader for the AI thesis analysis.
+Step loader for the AI thesis analysis.
 """
 
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any, Optional
 
 from config import STEP_DATA_FILE
-from src.utils import FileHandler, get_logger
+from src.constants.data_constants import StepDataType
+from src.loaders.base_loader import BaseLoader
+from src.utils import get_logger
 
 logger = get_logger("step_loader")
 
-
-class StepLoader:
+class StepLoader(BaseLoader[StepDataType]):
     """Loads and processes step data."""
     
     def __init__(self, file_path: str = STEP_DATA_FILE):
@@ -20,50 +21,9 @@ class StepLoader:
         Args:
             file_path: Path to the step data file
         """
-        self.file_path = file_path
-        self.file_handler = FileHandler()
-        self.raw_steps = None
-        self.processed_steps = None
+        super().__init__(file_path)
     
-    def load(self) -> List[Dict[str, Any]]:
-        """
-        Load step data from the file.
-        
-        Returns:
-            List of step records
-        """
-        logger.info(f"Loading step data from {self.file_path}")
-        self.raw_steps = self.file_handler.load_json(self.file_path)
-        
-        # Check data format
-        if not isinstance(self.raw_steps, list):
-            raise ValueError("Step data must be a list of objects")
-        
-        logger.info(f"Loaded {len(self.raw_steps)} step records")
-        return self.raw_steps
-    
-    def process(self) -> List[Dict[str, Any]]:
-        """
-        Process raw step data into a standardized format.
-        
-        Returns:
-            List of processed step records
-        """
-        if self.raw_steps is None:
-            self.load()
-        
-        logger.info("Processing step data")
-        self.processed_steps = []
-        
-        for step in self.raw_steps:
-            processed_step = self._process_step(step)
-            if processed_step:
-                self.processed_steps.append(processed_step)
-        
-        logger.info(f"Processed {len(self.processed_steps)} step records")
-        return self.processed_steps
-    
-    def _process_step(self, step: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _process_item(self, step: Dict[str, Any]) -> Optional[StepDataType]:
         """
         Process a single step record.
         
@@ -76,20 +36,20 @@ class StepLoader:
         try:
             # Basic validation
             if not step:
-                logger.warning("Empty step record")
+                self.logger.warning("Empty step record")
                 return None
             
             # Skip incomplete steps
             if 'content' not in step or not step['content'] or not step['content'].strip():
-                logger.debug(f"Step {step.get('_id', 'unknown')} has empty content, skipping")
+                self.logger.debug(f"Step {step.get('_id', 'unknown')} has empty content, skipping")
                 return None
                 
             if 'step' not in step or not step['step']:
-                logger.debug(f"Step {step.get('_id', 'unknown')} missing step name, skipping")
+                self.logger.debug(f"Step {step.get('_id', 'unknown')} missing step name, skipping")
                 return None
                 
             if 'idea_id' not in step or not step['idea_id']:
-                logger.debug(f"Step {step.get('_id', 'unknown')} missing idea ID, skipping")
+                self.logger.debug(f"Step {step.get('_id', 'unknown')} missing idea ID, skipping")
                 return None
             
             # Extract fields
@@ -118,26 +78,8 @@ class StepLoader:
             return processed_step
             
         except Exception as e:
-            logger.error(f"Error processing step {step.get('_id', 'unknown')}: {str(e)}")
+            self.logger.error(f"Error processing step {step.get('_id', 'unknown')}: {str(e)}")
             return None
-    
-    @staticmethod
-    def _extract_id(id_value: Any) -> str:
-        """Extract ID from various formats."""
-        if isinstance(id_value, dict) and '$oid' in id_value:
-            return id_value['$oid']
-        return str(id_value)
-    
-    @staticmethod
-    def _extract_timestamp(timestamp: Any) -> Optional[str]:
-        """Extract timestamp from various formats."""
-        if not timestamp:
-            return None
-            
-        if isinstance(timestamp, dict) and '$date' in timestamp:
-            return timestamp['$date']
-        
-        return str(timestamp)
     
     @staticmethod
     def _count_sections(content: str) -> int:

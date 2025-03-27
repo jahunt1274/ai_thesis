@@ -1,16 +1,17 @@
 """
-Idea data loader for the AI thesis analysis.
+Idea loader for the AI thesis analysis.
 """
 
 from typing import Dict, List, Any, Optional
 
 from config import IDEA_DATA_FILE
-from src.utils import FileHandler, get_logger
+from src.constants.data_constants import IdeaDataType
+from src.loaders.base_loader import BaseLoader
+from src.utils import get_logger
 
 logger = get_logger("idea_loader")
 
-
-class IdeaLoader:
+class IdeaLoader(BaseLoader[IdeaDataType]):
     """Loads and processes idea data."""
     
     def __init__(self, file_path: str = IDEA_DATA_FILE):
@@ -20,50 +21,9 @@ class IdeaLoader:
         Args:
             file_path: Path to the idea data file
         """
-        self.file_path = file_path
-        self.file_handler = FileHandler()
-        self.raw_ideas = None
-        self.processed_ideas = None
+        super().__init__(file_path)
     
-    def load(self) -> List[Dict[str, Any]]:
-        """
-        Load idea data from the file.
-        
-        Returns:
-            List of idea records
-        """
-        logger.info(f"Loading idea data from {self.file_path}")
-        self.raw_ideas = self.file_handler.load_json(self.file_path)
-        
-        # Check data format
-        if not isinstance(self.raw_ideas, list):
-            raise ValueError("Idea data must be a list of objects")
-        
-        logger.info(f"Loaded {len(self.raw_ideas)} idea records")
-        return self.raw_ideas
-    
-    def process(self) -> List[Dict[str, Any]]:
-        """
-        Process raw idea data into a standardized format.
-        
-        Returns:
-            List of processed idea records
-        """
-        if self.raw_ideas is None:
-            self.load()
-        
-        logger.info("Processing idea data")
-        self.processed_ideas = []
-        
-        for idea in self.raw_ideas:
-            processed_idea = self._process_idea(idea)
-            if processed_idea:
-                self.processed_ideas.append(processed_idea)
-        
-        logger.info(f"Processed {len(self.processed_ideas)} idea records")
-        return self.processed_ideas
-    
-    def _process_idea(self, idea: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _process_item(self, idea: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Process a single idea record.
         
@@ -76,7 +36,7 @@ class IdeaLoader:
         try:
             # Basic validation
             if not idea:
-                logger.warning("Empty idea record")
+                self.logger.warning("Empty idea record")
                 return None
             
             # Extract fields
@@ -101,8 +61,8 @@ class IdeaLoader:
                 description = raw_description
             else:
                 # Both are empty, skip idea
-                logger.warning(f"Idea {idea_id} has no content, skipping")
-                return
+                self.logger.warning(f"Idea {idea_id} has no content, skipping")
+                return None
             
             # Extract timestamps
             created_date = self._extract_timestamp(idea.get('created'))
@@ -126,26 +86,8 @@ class IdeaLoader:
             return processed_idea
             
         except Exception as e:
-            logger.error(f"Error processing idea {idea.get('_id', 'unknown')}: {str(e)}")
+            self.logger.error(f"Error processing idea {idea.get('_id', 'unknown')}: {str(e)}")
             return None
-    
-    @staticmethod
-    def _extract_id(id_value: Any) -> str:
-        """Extract ID from various formats."""
-        if isinstance(id_value, dict) and '$oid' in id_value:
-            return id_value['$oid']
-        return str(id_value)
-    
-    @staticmethod
-    def _extract_timestamp(timestamp: Any) -> Optional[str]:
-        """Extract timestamp from various formats."""
-        if not timestamp:
-            return None
-            
-        if isinstance(timestamp, dict) and '$date' in timestamp:
-            return timestamp['$date']
-        
-        return str(timestamp)
     
     @staticmethod
     def _extract_progress(idea: Dict[str, Any], framework: str) -> float:
@@ -172,7 +114,6 @@ class IdeaLoader:
         """Determine which frameworks are used by this idea."""
         frameworks = []
         
-        # 11787 HERE!!  Frameworks only getting listed if they have progress
         # Check progress fields
         if 'progress' in idea and idea['progress']:
             for framework in idea['progress']:
