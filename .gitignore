@@ -189,6 +189,10 @@ categorization/logs
 categorization/data
 categorization/output
 
+# Ignore all image and html files
+*.png
+*.html
+
 # OS
 .DS_Store
 Thumbs.db

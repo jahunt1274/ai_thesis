@@ -17,8 +17,7 @@ from src.loaders import DataLoader, CourseEvaluationLoader
 from src.processors import (
     DemographicAnalyzer, 
     UsageAnalyzer, 
-    EngagementAnalyzer, 
-    IdeaCategorizer, 
+    EngagementAnalyzer,
     CategoryMerger,
     IdeaCategoryAnalyzer,
     CourseEvaluationAnalyzer
@@ -313,65 +312,12 @@ class Analyzer:
             
             return categorized_ideas
             
-        # Otherwise, check if we should run categorization via API
-        elif self.categorize_ideas:
-            # Check if ideas already have categories
-            already_categorized = all("category" in idea for idea in self.ideas)
-            
-            if already_categorized:
-                logger.info("Ideas already have categories. Using existing categories.")
-                return self.ideas
-                
-            elif not self.openai_api_key:
-                logger.warning("OpenAI API key not provided. Skipping idea categorization.")
-                return []
-                
-            else:
-                logger.info("Running idea categorization via API...")
-                component_start = time.time()
-                
-                # Run categorization
-                idea_categorizer = IdeaCategorizer(
-                    ideas=self.ideas,
-                    output_dir=os.path.join(self.output_dir, "categorization"),
-                    api_key=self.openai_api_key,
-                    model=self.openai_model
-                )
-                
-                categorized_ideas = idea_categorizer.categorize()
-                self.performance_metrics["component_times"]["idea_categorization"] = time.time() - component_start
-                
-                # Update main ideas list with categories
-                self._update_ideas_with_categories(categorized_ideas)
-                
-                return categorized_ideas
+        # Log error if no categorization file is found
+        else:
+            logger.error("No file found for categorized ideas")
         
         # If we get here, categorization is disabled
         return []
-
-    def _update_ideas_with_categories(self, categorized_ideas: List[Dict[str, Any]]) -> None:
-        """
-        Update the main ideas list with categories from categorized ideas.
-        
-        Args:
-            categorized_ideas: List of categorized ideas
-        """
-        # Create a map of idea IDs to categories
-        category_map = {}
-        
-        for idea in categorized_ideas:
-            if "id" in idea and "category" in idea:
-                category_map[idea["id"]] = idea["category"]
-        
-        # Update main ideas list
-        updated_count = 0
-        
-        for idea in self.ideas:
-            if idea.get("id") in category_map:
-                idea["category"] = category_map[idea["id"]]
-                updated_count += 1
-        
-        logger.info(f"Updated {updated_count} ideas with categories")
     
     def _create_visualizations(self):
         """Create visualizations for analysis results."""
