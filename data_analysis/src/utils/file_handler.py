@@ -41,7 +41,7 @@ class FileHandler:
             FileNotFoundError: If the file doesn't exist
             json.JSONDecodeError: If the file contains invalid JSON
         """
-        self._ensure_file_exists(filepath)
+        self.ensure_file_exists(filepath)
         
         try:
             with open(filepath, 'r', encoding=self.encoding) as f:
@@ -69,7 +69,7 @@ class FileHandler:
         Returns:
             True if successful, False otherwise
         """
-        self._ensure_directory_exists(os.path.dirname(filepath))
+        self.ensure_directory_exists(os.path.dirname(filepath))
         
         try:
             with open(filepath, 'w', encoding=self.encoding) as f:
@@ -97,7 +97,7 @@ class FileHandler:
         Raises:
             FileNotFoundError: If the file doesn't exist
         """
-        self._ensure_file_exists(filepath)
+        self.ensure_file_exists(filepath)
         
         try:
             with open(filepath, 'r', encoding=self.encoding, newline='') as f:
@@ -127,7 +127,7 @@ class FileHandler:
         Returns:
             True if successful, False otherwise
         """
-        self._ensure_directory_exists(os.path.dirname(filepath))
+        self.ensure_directory_exists(os.path.dirname(filepath))
         
         try:
             with open(filepath, 'w', encoding=self.encoding, newline='') as f:
@@ -164,7 +164,7 @@ class FileHandler:
             FileNotFoundError: If the file doesn't exist
             yaml.YAMLError: If the file contains invalid YAML
         """
-        self._ensure_file_exists(filepath)
+        self.ensure_file_exists(filepath)
         
         try:
             with open(filepath, 'r', encoding=self.encoding) as f:
@@ -195,7 +195,7 @@ class FileHandler:
         Returns:
             True if successful, False otherwise
         """
-        self._ensure_directory_exists(os.path.dirname(filepath))
+        self.ensure_directory_exists(os.path.dirname(filepath))
         
         try:
             with open(filepath, 'w', encoding=self.encoding) as f:
@@ -224,7 +224,7 @@ class FileHandler:
         Raises:
             FileNotFoundError: If the file doesn't exist
         """
-        self._ensure_file_exists(filepath)
+        self.ensure_file_exists(filepath)
         
         try:
             with open(filepath, 'r', encoding=self.encoding) as f:
@@ -248,7 +248,7 @@ class FileHandler:
         Returns:
             True if successful, False otherwise
         """
-        self._ensure_directory_exists(os.path.dirname(filepath))
+        self.ensure_directory_exists(os.path.dirname(filepath))
         
         try:
             with open(filepath, 'w', encoding=self.encoding) as f:
@@ -298,7 +298,7 @@ class FileHandler:
         filename = "_".join(filename_parts) + f".{extension}"
         
         # Ensure output directory exists
-        self._ensure_directory_exists(output_dir)
+        self.ensure_directory_exists(output_dir)
         
         return os.path.join(output_dir, filename)
 
@@ -314,7 +314,7 @@ class FileHandler:
         Returns:
             List of file paths
         """
-        self._ensure_directory_exists(directory)
+        self.ensure_directory_exists(directory)
         
         path = Path(directory)
         
@@ -350,7 +350,7 @@ class FileHandler:
         # Sort by modification time (newest first)
         return max(files, key=os.path.getmtime)
     
-    def _ensure_file_exists(self, filepath: str) -> None:
+    def ensure_file_exists(self, filepath: str) -> None:
         """
         Ensure a file exists.
         
@@ -365,7 +365,7 @@ class FileHandler:
             logger.error(error_msg)
             raise FileNotFoundError(error_msg)
     
-    def _ensure_directory_exists(self, directory: str) -> None:
+    def ensure_directory_exists(self, directory: str) -> None:
         """
         Ensure a directory exists, creating it if necessary.
         
