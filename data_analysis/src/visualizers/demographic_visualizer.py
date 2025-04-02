@@ -9,6 +9,9 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 
 from src.visualizers.base_visualizer import BaseVisualizer
+from src.utils import get_logger
+
+logger = get_logger("demographic_visualizer")
 
 
 class DemographicVisualizer(BaseVisualizer):
@@ -37,11 +40,20 @@ class DemographicVisualizer(BaseVisualizer):
             'institutions': (self._visualize_institutions, {'data_key': 'institutions'})
         }
         
-        # Use the new helper method from BaseVisualizer
+        # Use the helper method from BaseVisualizer
         return self.visualize_all(data, visualization_map)
 
     def _visualize_affiliations(self, affiliations: Dict[str, int], filename: str) -> Optional[str]:
-        """Create visualization of user affiliations."""
+        """
+        Create visualization of user affiliations.
+        
+        Args:
+            affiliations: Counts by affiliation
+            filename: Base filename for saving
+            
+        Returns:
+            Path to the visualization file
+        """
         # Filter out low-count affiliations and sort by count
         min_count = 3  # Minimum count to include
         sorted_affiliations = sorted(
@@ -61,7 +73,7 @@ class DemographicVisualizer(BaseVisualizer):
         labels = [item[0].replace('_', ' ').title() for item in sorted_affiliations]
         values = [item[1] for item in sorted_affiliations]
         
-        # Create bar chart from data
+        # Create bar chart
         return self.create_bar_chart(
             labels=labels,
             values=values,
@@ -73,7 +85,16 @@ class DemographicVisualizer(BaseVisualizer):
         )
     
     def _visualize_user_types(self, user_types: Dict[str, int], filename: str) -> Optional[str]:
-        """Create visualization of user types."""
+        """
+        Create visualization of user types.
+        
+        Args:
+            user_types: Counts by user type
+            filename: Base filename for saving
+            
+        Returns:
+            Path to the visualization file
+        """
         if not user_types:
             return None
             
@@ -98,7 +119,7 @@ class DemographicVisualizer(BaseVisualizer):
         labels = [k.replace('_', ' ').title() for k in significant_types.keys()]
         values = list(significant_types.values())
         
-        # Create pie chart from data
+        # Create pie chart
         return self.create_pie_chart(
             labels=labels,
             values=values,
@@ -108,7 +129,16 @@ class DemographicVisualizer(BaseVisualizer):
         )
     
     def _visualize_activity_cohorts(self, activity_cohorts: Dict[str, int], filename: str) -> Optional[str]:
-        """Create visualization of activity cohorts."""
+        """
+        Create visualization of activity cohorts.
+        
+        Args:
+            activity_cohorts: Counts by activity cohort
+            filename: Base filename for saving
+            
+        Returns:
+            Path to the visualization file
+        """
         if not activity_cohorts:
             return None
         
@@ -141,7 +171,7 @@ class DemographicVisualizer(BaseVisualizer):
                 values.append(activity_cohorts[key])
                 colors.append(color_map[key])
         
-        # Create bar chart from data
+        # Create bar chart
         return self.create_bar_chart(
             labels=labels,
             values=values,
@@ -153,7 +183,16 @@ class DemographicVisualizer(BaseVisualizer):
         )
     
     def _visualize_user_creation(self, creation_dates: Dict[str, int], filename: str) -> Optional[str]:
-        """Create visualization of user creation over time."""
+        """
+        Create visualization of user creation over time.
+        
+        Args:
+            creation_dates: Counts by creation date
+            filename: Base filename for saving
+            
+        Returns:
+            Path to the visualization file
+        """
         # Need at least 2 data points for a meaningful timeline
         if len(creation_dates) < 2:
             return None
@@ -168,10 +207,10 @@ class DemographicVisualizer(BaseVisualizer):
                 dates.append(date_obj)
                 counts.append(count)
         
-        # Setup figure
+        # Setup figure and subplots
         fig, ax1 = plt.subplots(figsize=(14, 7))
         
-        # Plot line chart with our line chart helper
+        # Plot line chart for new users
         ax1.plot(dates, counts, marker='o', linestyle='-', color='royalblue', 
                 linewidth=2, markersize=8)
         
@@ -200,11 +239,20 @@ class DemographicVisualizer(BaseVisualizer):
         
         plt.tight_layout()
         
-        # Save figure
+        # Save and return
         return self.save_figure(filename)
     
     def _visualize_enrollments(self, enrollments: Dict[str, Any], filename: str) -> Optional[str]:
-        """Create visualization of enrollment statistics."""
+        """
+        Create visualization of enrollment statistics.
+        
+        Args:
+            enrollments: Enrollment statistics
+            filename: Base filename for saving
+            
+        Returns:
+            Path to the visualization file
+        """
         if not enrollments:
             return None
     
@@ -217,7 +265,7 @@ class DemographicVisualizer(BaseVisualizer):
         stats = ['Users With Enrollments', 'Total Enrollments']
         values = [users_with_enrollments, total_enrollments]
         
-        # Create bar chart with our helper method
+        # Create bar chart
         result = self.create_bar_chart(
             labels=stats,
             values=values,
@@ -240,7 +288,16 @@ class DemographicVisualizer(BaseVisualizer):
         return result
     
     def _visualize_top_courses(self, top_courses: List[tuple], filename: str) -> Optional[str]:
-        """Create visualization of top courses."""
+        """
+        Create visualization of top courses.
+        
+        Args:
+            top_courses: List of (course, count) tuples
+            filename: Base filename for saving
+            
+        Returns:
+            Path to the visualization file
+        """
         # Check if we have course data
         if not top_courses:
             return None
@@ -274,7 +331,16 @@ class DemographicVisualizer(BaseVisualizer):
         )
     
     def _visualize_interests(self, interests: Dict[str, int], filename: str) -> Optional[str]:
-        """Create visualization of user interests."""
+        """
+        Create visualization of user interests.
+        
+        Args:
+            interests: Counts by interest
+            filename: Base filename for saving
+            
+        Returns:
+            Path to the visualization file
+        """
         # Filter out low-count interests and sort by count
         min_count = 3  # Minimum count to include
         sorted_interests = sorted(
@@ -306,7 +372,16 @@ class DemographicVisualizer(BaseVisualizer):
         )
     
     def _visualize_user_counts(self, user_counts: Dict[str, int], filename: str) -> Optional[str]:
-        """Create visualization of user counts."""
+        """
+        Create visualization of user counts.
+        
+        Args:
+            user_counts: User counts by category
+            filename: Base filename for saving
+            
+        Returns:
+            Path to the visualization file
+        """
         # Skip if no data
         if not user_counts:
             return None
@@ -337,7 +412,16 @@ class DemographicVisualizer(BaseVisualizer):
         )
     
     def _visualize_institutions(self, institutions: Dict[str, int], filename: str) -> Optional[str]:
-        """Create visualization of user institutions."""
+        """
+        Create visualization of user institutions.
+        
+        Args:
+            institutions: Counts by institution
+            filename: Base filename for saving
+            
+        Returns:
+            Path to the visualization file
+        """
         # Filter out low-count institutions and sort by count
         min_count = 2  # Minimum count to include
         sorted_institutions = sorted(

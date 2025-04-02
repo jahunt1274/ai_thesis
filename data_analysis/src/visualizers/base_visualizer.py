@@ -61,8 +61,8 @@ class BaseVisualizer(ABC):
         
         # Create output directory with component-specific subdirectory
         component_name = self.__class__.__name__.replace('Visualizer', '').lower()
-        self.file_handler.ensure_directory_exists(self.vis_dir)
         self.vis_dir = os.path.join(output_dir, component_name)
+        self.file_handler.ensure_directory_exists(self.vis_dir)
         
         # Set default style
         plt.style.use('seaborn-v0_8-whitegrid')
@@ -104,16 +104,47 @@ class BaseVisualizer(ABC):
         for name, (vis_func, kwargs) in visualization_map.items():
             # Extract data for this visualization
             data_key = kwargs.pop('data_key', name)
-            vis_data = data.get(data_key, {})
+            
+            # Support for nested data keys (e.g., 'cohorts.user_types')
+            vis_data = self._get_nested_data(data, data_key)
             
             # Only proceed if we have data
             if vis_data:
                 vis_path = self.create_visualization(vis_func, vis_data, name, **kwargs)
                 if vis_path:
                     visualizations[name] = vis_path
+            else:
+                logger.warning(f"No data found for visualization: {name} (key: {data_key})")
         
         logger.info(f"Generated {len(visualizations)} visualizations")
         return visualizations
+    
+    def _get_nested_data(self, data: Dict[str, Any], key_path: str) -> Any:
+        """
+        Get data from nested dictionary using dot notation.
+        
+        Args:
+            data: Data dictionary
+            key_path: Key path using dot notation (e.g., 'cohorts.user_types')
+            
+        Returns:
+            Value at the specified path or None if not found
+        """
+        if not key_path or not data:
+            return None
+            
+        # Split the key path
+        keys = key_path.split('.')
+        
+        # Traverse the nested dictionary
+        current = data
+        for key in keys:
+            if isinstance(current, dict) and key in current:
+                current = current[key]
+            else:
+                return None
+                
+        return current
     
     def save_visualization_index(self, visualizations: Dict[str, str], 
                                filename: str = "visualization_index") -> Optional[str]:
@@ -546,6 +577,7 @@ class BaseVisualizer(ABC):
             '%Y-%m-%dT%H:%M:%SZ',     # ISO format without milliseconds
             '%Y-%m-%d',               # Simple date format
             '%Y/%m/%d',               # Alternative date format
+            '%Y-%m',                  # Year-Month format
         ]
         
         for fmt in formats:
@@ -961,5 +993,413 @@ class BaseVisualizer(ABC):
             
         except Exception as e:
             logger.error(f"Error creating heatmap visualization {filename}: {str(e)}")
+            plt.close()
+            return None
+            
+    def create_stacked_bar_chart(self,
+                               labels: List[str],
+                               data_dict: Dict[str, List[float]],
+                               filename: str,
+                               title: Optional[str] = None,
+                               xlabel: Optional[str] = None,
+                               ylabel: Optional[str] = None,
+                               colors: Optional[Dict[str, str]] = None,
+                               figsize: Tuple[int, int] = (12, 8),
+                               rotation: int = 0,
+                               show_percentages: bool = False,
+                               horizontal: bool = False) -> Optional[str]:
+        """
+        Create a stacked bar chart visualization.
+        
+        Args:
+            labels: Bar labels (x-axis)
+            data_dict: Dictionary mapping stack levels to values lists
+            filename: Base filename for saving
+            title: Chart title
+            xlabel: X-axis label
+            ylabel: Y-axis label
+            colors: Dictionary mapping stack levels to colors
+            figsize: Figure size (width, height) in inches
+            rotation: Rotation angle for x-tick labels
+            show_percentages: Whether to show percentages in each segment
+            horizontal: Whether to create a horizontal stacked bar chart
+            
+        Returns:
+            Path to the saved figure or None if an error occurred
+        """
+        try:
+            # Setup figure
+            fig = self.setup_figure(
+                figsize=figsize, 
+                title=title,
+                xlabel=xlabel,
+                ylabel=ylabel
+            )
+            
+            # Get stack levels in desired order
+            stack_levels = list(data_dict.keys())
+            
+            # Set default colors if not provided
+            if colors is None:
+                color_list = self.get_color_gradient(len(stack_levels), 'categorical')
+                colors = {level: color for level, color in zip(stack_levels, color_list)}
+            
+            # Calculate totals for percentage display if needed
+            if show_percentages:
+                totals = [sum(data_dict[level][i] for level in stack_levels) 
+                         for i in range(len(labels))]
+            
+            # Create stacked bar chart
+            bottom = np.zeros(len(labels))
+            bars = {}
+            
+            for level in stack_levels:
+                values = data_dict[level]
+                color = colors.get(level, 'gray')
+                
+                if horizontal:
+                    bars[level] = plt.barh(labels, values, left=bottom, label=f'{level}', color=color)
+                else:
+                    bars[level] = plt.bar(labels, values, bottom=bottom, label=f'{level}', color=color)
+                
+                # Add percentage labels if requested
+                if show_percentages:
+                    for i, bar in enumerate(bars[level]):
+                        if horizontal:
+                            width = bar.get_width()
+                            if width > 0 and totals[i] > 0:
+                                percentage = width / totals[i] * 100
+                                if percentage >= 5:  # Only show label if segment is large enough
+                                    plt.text(
+                                        bar.get_x() + width/2,
+                                        bar.get_y() + bar.get_height()/2,
+                                        f"{percentage:.1f}%",
+                                        ha='center', va='center',
+                                        color='black' if colors.get(level, 'gray') in ['lightyellow', 'lightgray'] else 'white',
+                                        fontweight='bold'
+                                    )
+                        else:
+                            height = bar.get_height()
+                            if height > 0 and totals[i] > 0:
+                                percentage = height / totals[i] * 100
+                                if percentage >= 5:  # Only show label if segment is large enough
+                                    plt.text(
+                                        bar.get_x() + bar.get_width()/2,
+                                        bottom[i] + height/2,
+                                        f"{percentage:.1f}%",
+                                        ha='center', va='center',
+                                        color='black' if colors.get(level, 'gray') in ['lightyellow', 'lightgray'] else 'white',
+                                        fontweight='bold'
+                                    )
+                
+                # Update bottom for next stack level
+                bottom += values
+            
+            # Add rotation to labels if needed
+            plt.xticks(rotation=rotation, ha='right' if rotation > 0 else 'center')
+            
+            # Add legend
+            plt.legend(loc='best')
+            
+            plt.tight_layout()
+            
+            # Save and return
+            return self.save_figure(filename)
+            
+        except Exception as e:
+            logger.error(f"Error creating stacked bar chart visualization {filename}: {str(e)}")
+            plt.close()
+            return None
+            
+    def create_grouped_bar_chart(self,
+                              labels: List[str],
+                              data_dict: Dict[str, List[float]],
+                              filename: str,
+                              title: Optional[str] = None,
+                              xlabel: Optional[str] = None,
+                              ylabel: Optional[str] = None,
+                              colors: Optional[Dict[str, str]] = None,
+                              figsize: Tuple[int, int] = (12, 8),
+                              rotation: int = 0,
+                              add_value_labels: bool = True,
+                              format_str: str = '{:.0f}') -> Optional[str]:
+        """
+        Create a grouped bar chart visualization.
+        
+        Args:
+            labels: Bar group labels
+            data_dict: Dictionary mapping series names to values lists
+            filename: Base filename for saving
+            title: Chart title
+            xlabel: X-axis label
+            ylabel: Y-axis label
+            colors: Dictionary mapping series names to colors
+            figsize: Figure size (width, height) in inches
+            rotation: Rotation angle for x-tick labels
+            add_value_labels: Whether to add value labels to bars
+            format_str: Format string for value labels
+            
+        Returns:
+            Path to the saved figure or None if an error occurred
+        """
+        try:
+            # Setup figure
+            fig = self.setup_figure(
+                figsize=figsize, 
+                title=title,
+                xlabel=xlabel,
+                ylabel=ylabel
+            )
+            
+            # Get group names and set positions
+            series_names = list(data_dict.keys())
+            num_groups = len(labels)
+            num_series = len(series_names)
+            
+            # Calculate bar width and positions
+            group_width = 0.8
+            bar_width = group_width / num_series
+            index = np.arange(num_groups)
+            
+            # Set default colors if not provided
+            if colors is None:
+                color_list = self.get_color_gradient(len(series_names), 'categorical')
+                colors = {name: color for name, color in zip(series_names, color_list)}
+            
+            # Create grouped bars
+            bars = {}
+            for i, name in enumerate(series_names):
+                values = data_dict[name]
+                color = colors.get(name, 'gray')
+                position = index - group_width/2 + (i + 0.5) * bar_width
+                
+                bars[name] = plt.bar(position, values, bar_width, label=name, color=color)
+                
+                # Add value labels if requested
+                if add_value_labels:
+                    for bar in bars[name]:
+                        height = bar.get_height()
+                        plt.text(
+                            bar.get_x() + bar.get_width()/2,
+                            height + 0.1,
+                            format_str.format(height),
+                            ha='center', va='bottom'
+                        )
+            
+            # Set x-axis ticks and labels
+            plt.xticks(index, labels, rotation=rotation, ha='right' if rotation > 0 else 'center')
+            
+            # Add legend
+            plt.legend(loc='best')
+            
+            plt.tight_layout()
+            
+            # Save and return
+            return self.save_figure(filename)
+            
+        except Exception as e:
+            logger.error(f"Error creating grouped bar chart visualization {filename}: {str(e)}")
+            plt.close()
+            return None
+            
+    def create_scatter_plot(self,
+                          x: List[float],
+                          y: List[float],
+                          filename: str,
+                          title: Optional[str] = None,
+                          xlabel: Optional[str] = None,
+                          ylabel: Optional[str] = None,
+                          color: Union[str, List[str]] = 'royalblue',
+                          sizes: Optional[List[float]] = None,
+                          add_trend: bool = False,
+                          add_labels: Optional[List[str]] = None,
+                          figsize: Tuple[int, int] = (12, 8)) -> Optional[str]:
+        """
+        Create a scatter plot visualization.
+        
+        Args:
+            x: X values
+            y: Y values
+            filename: Base filename for saving
+            title: Chart title
+            xlabel: X-axis label
+            ylabel: Y-axis label
+            color: Point color(s)
+            sizes: Point sizes
+            add_trend: Whether to add a trend line
+            add_labels: Optional point labels
+            figsize: Figure size (width, height) in inches
+            
+        Returns:
+            Path to the saved figure or None if an error occurred
+        """
+        try:
+            # Setup figure
+            fig = self.setup_figure(
+                figsize=figsize, 
+                title=title,
+                xlabel=xlabel,
+                ylabel=ylabel
+            )
+            
+            # Create scatter plot
+            scatter = plt.scatter(x, y, c=color, s=sizes, alpha=0.7)
+            
+            # Add trend line if requested
+            if add_trend:
+                self.add_trend_line(plt.gca(), x, y)
+            
+            # Add point labels if provided
+            if add_labels:
+                for i, label in enumerate(add_labels):
+                    plt.annotate(
+                        label, 
+                        (x[i], y[i]),
+                        xytext=(5, 5),
+                        textcoords='offset points',
+                        fontsize=9
+                    )
+            
+            plt.grid(True, linestyle='--', alpha=0.7)
+            plt.tight_layout()
+            
+            # Save and return
+            return self.save_figure(filename)
+            
+        except Exception as e:
+            logger.error(f"Error creating scatter plot visualization {filename}: {str(e)}")
+            plt.close()
+            return None
+            
+    def create_histogram(self,
+                        data: List[float],
+                        filename: str,
+                        title: Optional[str] = None,
+                        xlabel: Optional[str] = None,
+                        ylabel: Optional[str] = None,
+                        color: str = 'royalblue',
+                        bins: Union[int, List[float]] = 10,
+                        add_kde: bool = False,
+                        figsize: Tuple[int, int] = (12, 8),
+                        add_mean_line: bool = False) -> Optional[str]:
+        """
+        Create a histogram visualization.
+        
+        Args:
+            data: Data values
+            filename: Base filename for saving
+            title: Chart title
+            xlabel: X-axis label
+            ylabel: Y-axis label
+            color: Bar color
+            bins: Number of bins or bin edges
+            add_kde: Whether to add a kernel density estimate curve
+            figsize: Figure size (width, height) in inches
+            add_mean_line: Whether to add a vertical line at the mean
+            
+        Returns:
+            Path to the saved figure or None if an error occurred
+        """
+        try:
+            # Setup figure
+            fig = self.setup_figure(
+                figsize=figsize, 
+                title=title,
+                xlabel=xlabel,
+                ylabel=ylabel
+            )
+            
+            # Create histogram
+            plt.hist(data, bins=bins, color=color, alpha=0.7, edgecolor='black')
+            
+            # Add KDE if requested
+            if add_kde:
+                try:
+                    import scipy.stats as stats
+                    density = stats.gaussian_kde(data)
+                    x_vals = np.linspace(min(data), max(data), 1000)
+                    y_vals = density(x_vals)
+                    
+                    # Scale KDE to match histogram height
+                    hist_heights, _ = np.histogram(data, bins=bins)
+                    max_hist = max(hist_heights)
+                    y_vals = y_vals * max_hist / max(y_vals)
+                    
+                    plt.plot(x_vals, y_vals, 'r-', linewidth=2, label='KDE')
+                    plt.legend()
+                except ImportError:
+                    logger.warning("scipy not available, skipping KDE")
+            
+            # Add mean line if requested
+            if add_mean_line and data:
+                mean_val = np.mean(data)
+                plt.axvline(x=mean_val, color='r', linestyle='--', 
+                           label=f'Mean: {mean_val:.2f}')
+                plt.legend()
+            
+            plt.grid(True, linestyle='--', alpha=0.7)
+            plt.tight_layout()
+            
+            # Save and return
+            return self.save_figure(filename)
+            
+        except Exception as e:
+            logger.error(f"Error creating histogram visualization {filename}: {str(e)}")
+            plt.close()
+            return None
+            
+    def create_boxplot(self,
+                      data: List[List[float]],
+                      labels: List[str],
+                      filename: str,
+                      title: Optional[str] = None,
+                      xlabel: Optional[str] = None,
+                      ylabel: Optional[str] = None,
+                      figsize: Tuple[int, int] = (12, 8),
+                      horizontal: bool = False,
+                      add_grid: bool = True) -> Optional[str]:
+        """
+        Create a box plot visualization.
+        
+        Args:
+            data: List of data series
+            labels: Box labels
+            filename: Base filename for saving
+            title: Chart title
+            xlabel: X-axis label
+            ylabel: Y-axis label
+            figsize: Figure size (width, height) in inches
+            horizontal: Whether to create a horizontal box plot
+            add_grid: Whether to add grid lines
+            
+        Returns:
+            Path to the saved figure or None if an error occurred
+        """
+        try:
+            # Setup figure
+            fig = self.setup_figure(
+                figsize=figsize, 
+                title=title,
+                xlabel=xlabel,
+                ylabel=ylabel
+            )
+            
+            # Create box plot
+            if horizontal:
+                plt.boxplot(data, labels=labels, vert=False)
+            else:
+                plt.boxplot(data, labels=labels)
+            
+            # Add grid if requested
+            if add_grid:
+                plt.grid(True, linestyle='--', alpha=0.7)
+            
+            plt.tight_layout()
+            
+            # Save and return
+            return self.save_figure(filename)
+            
+        except Exception as e:
+            logger.error(f"Error creating box plot visualization {filename}: {str(e)}")
             plt.close()
             return None

@@ -3,19 +3,17 @@ Visualization manager for the AI thesis analysis.
 """
 
 import os
-from typing import Dict, List, Any, Optional
-import shutil
+from typing import Dict, List, Any, Optional, Type
 from datetime import datetime
 
 from src.utils import get_logger, FileHandler
-from src.visualizers import (
-    DemographicVisualizer, 
-    UsageVisualizer, 
-    EngagementVisualizer, 
-    CategorizationVisualizer, 
-    CohortVisualizer,
-    CourseEvaluationVisualizer
-)
+from src.visualizers.base_visualizer import BaseVisualizer
+from src.visualizers.demographic_visualizer import DemographicVisualizer
+from src.visualizers.usage_visualizer import UsageVisualizer
+from src.visualizers.engagement_visualizer import EngagementVisualizer
+from src.visualizers.categorization_visualizer import CategorizationVisualizer
+from src.visualizers.cohort_visualizer import CohortVisualizer
+from src.visualizers.course_eval_visualizer import CourseEvaluationVisualizer
 
 logger = get_logger("visualization_manager")
 
@@ -38,20 +36,40 @@ class VisualizationManager:
         
         # Create visualizations output directory
         vis_output_dir = os.path.join(output_dir, "visualizations")
-        self.file_handler._ensure_directory_exists(vis_output_dir)
+        self.file_handler.ensure_directory_exists(vis_output_dir)
         self.vis_output_dir = vis_output_dir
         
-        # Create visualizers
-        self.visualizers = {
-            "demographics": DemographicVisualizer(vis_output_dir, format),
-            "usage": UsageVisualizer(vis_output_dir, format),
-            "engagement": EngagementVisualizer(vis_output_dir, format),
-            "categorization": CategorizationVisualizer(vis_output_dir, format),
-            "cohorts": CohortVisualizer(vis_output_dir, format),
-            "course_evaluations": CourseEvaluationVisualizer(vis_output_dir, format)
+        # Map component names to visualizer classes
+        self.visualizer_classes = {
+            "demographics": DemographicVisualizer,
+            "usage": UsageVisualizer,
+            "engagement": EngagementVisualizer,
+            "categorization": CategorizationVisualizer,
+            "cohorts": CohortVisualizer,
+            "course_evaluations": CourseEvaluationVisualizer
         }
         
+        # Create visualizer instances
+        self.visualizers = self._create_visualizers()
+        
         logger.info(f"Initialized VisualizationManager with output directory: {vis_output_dir}")
+    
+    def _create_visualizers(self) -> Dict[str, BaseVisualizer]:
+        """
+        Create instances of all visualizer classes.
+        
+        Returns:
+            Dictionary mapping component names to visualizer instances
+        """
+        visualizers = {}
+        for component, visualizer_class in self.visualizer_classes.items():
+            try:
+                visualizers[component] = visualizer_class(self.vis_output_dir, self.format)
+                logger.debug(f"Created {visualizer_class.__name__} for component '{component}'")
+            except Exception as e:
+                logger.error(f"Error creating visualizer for '{component}': {str(e)}")
+        
+        return visualizers
     
     def visualize_all(self, analysis_results: Dict[str, Any]) -> Dict[str, Dict[str, str]]:
         """
@@ -68,19 +86,7 @@ class VisualizationManager:
         # Process each component that exists in the results
         for component, visualizer in self.visualizers.items():
             if component in analysis_results:
-                logger.info(f"Creating visualizations for {component}")
-                try:
-                    component_visuals = visualizer.visualize(analysis_results[component])
-                    self.visualization_outputs[component] = component_visuals
-
-                    # Create an index file and report for this component
-                    if component_visuals:
-                        visualizer.save_visualization_index(component_visuals)
-                        visualizer.save_visualization_report(component_visuals)
-
-                    logger.info(f"Created {len(component_visuals)} visualizations for {component}")
-                except Exception as e:
-                    logger.error(f"Error creating visualizations for {component}: {str(e)}")
+                self._visualize_component_safe(component, visualizer, analysis_results[component])
         
         # Generate an overview HTML report
         self._generate_html_report()
@@ -92,7 +98,7 @@ class VisualizationManager:
         Create visualizations for a specific analysis component.
         
         Args:
-            component: Component name (demographics, usage, engagement, categorization)
+            component: Component name (demographics, usage, engagement, categorization, etc.)
             data: Component's analysis results
             
         Returns:
@@ -102,22 +108,47 @@ class VisualizationManager:
             logger.warning(f"No visualizer found for component: {component}")
             return None
         
+        visualizer = self.visualizers[component]
+        component_visuals = self._visualize_component_safe(component, visualizer, data)
+        
+        # Generate an updated HTML report
+        self._generate_html_report()
+        
+        return component_visuals
+    
+    def _visualize_component_safe(self, component: str, visualizer: BaseVisualizer, 
+                               data: Dict[str, Any]) -> Optional[Dict[str, str]]:
+        """
+        Create visualizations for a component with error handling.
+        
+        Args:
+            component: Component name
+            visualizer: Visualizer instance
+            data: Component's analysis results
+            
+        Returns:
+            Dictionary mapping visualization names to file paths, or None if an error occurred
+        """
         logger.info(f"Creating visualizations for {component}")
+        
         try:
-            component_visuals = self.visualizers[component].visualize(data)
+            # Create visualizations
+            component_visuals = visualizer.visualize(data)
+            
+            # Store results
             self.visualization_outputs[component] = component_visuals
             
             # Create an index file and report for this component
             if component_visuals:
-                self.visualizers[component].save_visualization_index(component_visuals)
-                self.visualizers[component].save_visualization_report(component_visuals)
-            
-            logger.info(f"Created {len(component_visuals)} visualizations for {component}")
-            
-            # Generate an updated HTML report
-            self._generate_html_report()
+                visualizer.save_visualization_index(component_visuals)
+                visualizer.save_visualization_report(component_visuals)
+                
+                logger.info(f"Created {len(component_visuals)} visualizations for {component}")
+            else:
+                logger.warning(f"No visualizations created for {component}")
             
             return component_visuals
+            
         except Exception as e:
             logger.error(f"Error creating visualizations for {component}: {str(e)}")
             return None
@@ -140,7 +171,7 @@ class VisualizationManager:
         
         try:
             # Prepare HTML content
-            html_content = self._create_report_html()
+            html_content = self._create_report_html(report_dir)
             
             # Save the report using FileHandler
             success = self.file_handler.save_text(html_content, report_path)
@@ -156,14 +187,17 @@ class VisualizationManager:
             logger.error(f"Error generating HTML report: {str(e)}")
             return ""
     
-    def _create_report_html(self) -> str:
+    def _create_report_html(self, report_dir: str) -> str:
         """
         Create HTML content for the report.
         
+        Args:
+            report_dir: Directory where the report will be saved
+            
         Returns:
             HTML content as string
         """
-        # HTML header
+        # HTML header with improved styling
         html = """<!DOCTYPE html>
         <html lang="en">
         <head>
@@ -172,29 +206,34 @@ class VisualizationManager:
             <title>AI Thesis Analysis Visualization Report</title>
             <style>
                 body {
-                    font-family: Arial, sans-serif;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
                     margin: 0;
                     padding: 20px;
                     color: #333;
+                    line-height: 1.6;
                 }
                 header {
-                    background-color: #f8f8f8;
+                    background-color: #f8f9fa;
                     padding: 20px;
                     border-bottom: 1px solid #ddd;
                     margin-bottom: 20px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
                 }
                 h1 {
                     margin: 0;
                     color: #2c3e50;
+                    font-weight: 600;
                 }
                 h2 {
                     color: #3498db;
                     border-bottom: 1px solid #eee;
                     padding-bottom: 10px;
                     margin-top: 30px;
+                    font-weight: 500;
                 }
                 h3 {
                     color: #2980b9;
+                    font-weight: 500;
                 }
                 .vis-container {
                     margin-bottom: 40px;
@@ -203,35 +242,56 @@ class VisualizationManager:
                     margin-bottom: 30px;
                     border: 1px solid #eee;
                     padding: 15px;
-                    border-radius: 5px;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+                    transition: transform 0.2s ease-in-out;
+                }
+                .vis-item:hover {
+                    transform: translateY(-3px);
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
                 }
                 .vis-item h4 {
                     margin-top: 0;
-                    color: #555;
+                    color: #444;
+                    font-weight: 500;
                 }
                 .vis-item img {
                     max-width: 100%;
                     height: auto;
                     border: 1px solid #ddd;
+                    border-radius: 4px;
                 }
                 .timestamp {
-                    color: #777;
+                    color: #888;
                     font-size: 0.9em;
                     margin-top: 5px;
                 }
                 nav {
-                    background-color: #f0f0f0;
-                    padding: 10px;
+                    background-color: #f0f4f8;
+                    padding: 15px;
                     margin-bottom: 20px;
-                    border-radius: 5px;
+                    border-radius: 8px;
+                    position: sticky;
+                    top: 20px;
+                    z-index: 100;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
                 }
                 nav a {
                     margin-right: 15px;
                     color: #3498db;
                     text-decoration: none;
+                    padding: 5px 10px;
+                    border-radius: 4px;
+                    transition: background-color 0.2s;
                 }
                 nav a:hover {
-                    text-decoration: underline;
+                    background-color: #e1f0fa;
+                    text-decoration: none;
+                }
+                .grid-container {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
+                    gap: 20px;
                 }
             </style>
         </head>
@@ -266,29 +326,15 @@ class VisualizationManager:
             html += f'        <h2>{component.capitalize()} Analysis</h2>\n'
             
             # Group by subcategories if they exist
-            subcategories = {}
-            for name, path in visuals.items():
-                # Extract subcategory from name (format: subcategory_name)
-                parts = name.split('_', 1)
-                if len(parts) > 1:
-                    subcategory, vis_name = parts
-                else:
-                    subcategory = "general"
-                    vis_name = name
-                
-                if subcategory not in subcategories:
-                    subcategories[subcategory] = []
-                
-                subcategories[subcategory].append({
-                    'name': vis_name,
-                    'path': path,
-                    'full_name': name
-                })
+            subcategories = self._group_visualizations_by_subcategory(visuals)
             
             # Write visualizations by subcategory
             for subcategory, vis_items in subcategories.items():
                 if subcategory != "general":
                     html += f'        <h3>{subcategory.capitalize()}</h3>\n'
+                
+                # Use grid layout for multiple visualizations
+                html += '        <div class="grid-container">\n'
                 
                 for vis in vis_items:
                     # Get relative path for the HTML report
@@ -298,19 +344,87 @@ class VisualizationManager:
                     html += f'            <h4>{vis["name"].replace("_", " ").capitalize()}</h4>\n'
                     html += f'            <img src="{rel_path}" alt="{vis["full_name"]}">\n'
                     html += '        </div>\n'
+                
+                html += '        </div>\n'
             
             html += '    </section>\n'
         
-        # HTML footer
+        # HTML footer with interactive features
         html += """
             <script>
-                // Add any interactive elements here if needed
+                // Smooth scrolling for navigation links
+                document.querySelectorAll('nav a').forEach(anchor => {
+                    anchor.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        
+                        const targetId = this.getAttribute('href');
+                        const targetElement = document.querySelector(targetId);
+                        
+                        window.scrollTo({
+                            top: targetElement.offsetTop - 20,
+                            behavior: 'smooth'
+                        });
+                    });
+                });
+                
+                // Highlight current section in navigation
+                window.addEventListener('scroll', function() {
+                    const sections = document.querySelectorAll('section');
+                    const navLinks = document.querySelectorAll('nav a');
+                    
+                    let currentSection = '';
+                    
+                    sections.forEach(section => {
+                        const sectionTop = section.offsetTop;
+                        const sectionHeight = section.clientHeight;
+                        
+                        if (pageYOffset >= sectionTop - 100) {
+                            currentSection = '#' + section.getAttribute('id');
+                        }
+                    });
+                    
+                    navLinks.forEach(link => {
+                        link.style.fontWeight = link.getAttribute('href') === currentSection ? 'bold' : 'normal';
+                    });
+                });
             </script>
         </body>
         </html>
         """
         
         return html
+    
+    def _group_visualizations_by_subcategory(self, visuals: Dict[str, str]) -> Dict[str, List[Dict[str, str]]]:
+        """
+        Group visualizations by subcategory based on naming convention.
+        
+        Args:
+            visuals: Dictionary mapping visualization names to file paths
+            
+        Returns:
+            Dictionary mapping subcategories to lists of visualization info
+        """
+        subcategories = {}
+        
+        for name, path in visuals.items():
+            # Extract subcategory from name (format: subcategory_name)
+            parts = name.split('_', 1)
+            if len(parts) > 1:
+                subcategory, vis_name = parts
+            else:
+                subcategory = "general"
+                vis_name = name
+            
+            if subcategory not in subcategories:
+                subcategories[subcategory] = []
+            
+            subcategories[subcategory].append({
+                'name': vis_name,
+                'path': path,
+                'full_name': name
+            })
+        
+        return subcategories
     
     def copy_visualizations_to_directory(self, target_dir: str) -> bool:
         """
@@ -324,28 +438,28 @@ class VisualizationManager:
         """
         try:
             # Ensure target directory exists
-            self.file_handler._ensure_directory_exists(target_dir)
+            self.file_handler.ensure_directory_exists(target_dir)
             
             # Copy each visualization
             copy_count = 0
             for component, visuals in self.visualization_outputs.items():
                 # Create component subdirectory
                 component_dir = os.path.join(target_dir, component)
-                self.file_handler._ensure_directory_exists(component_dir)
+                self.file_handler.ensure_directory_exists(component_dir)
                 
                 # Copy each visualization file
                 for name, path in visuals.items():
                     if os.path.exists(path):
                         target_path = os.path.join(component_dir, os.path.basename(path))
-                        shutil.copy2(path, target_path)
+                        self.file_handler.copy_file(path, target_path)
                         copy_count += 1
             
             # Copy HTML report if exists
             report_path = os.path.join(self.vis_output_dir, "visualization_report", "visualization_report.html")
             if os.path.exists(report_path):
                 target_report_dir = os.path.join(target_dir, "report")
-                self.file_handler._ensure_directory_exists(target_report_dir)
-                shutil.copy2(report_path, os.path.join(target_report_dir, "visualization_report.html"))
+                self.file_handler.ensure_directory_exists(target_report_dir)
+                self.file_handler.copy_file(report_path, os.path.join(target_report_dir, "visualization_report.html"))
             
             logger.info(f"Copied {copy_count} visualization files to {target_dir}")
             return True
@@ -370,7 +484,7 @@ class VisualizationManager:
                 if component in self.visualizers:
                     vis_dir = self.visualizers[component].vis_dir
                     if os.path.exists(vis_dir):
-                        # Only delete visualization files, not the directory itself
+                        # Delete all files in the directory
                         for file in os.listdir(vis_dir):
                             file_path = os.path.join(vis_dir, file)
                             if os.path.isfile(file_path):
@@ -390,7 +504,7 @@ class VisualizationManager:
                 for component, visualizer in self.visualizers.items():
                     vis_dir = visualizer.vis_dir
                     if os.path.exists(vis_dir):
-                        # Only delete visualization files, not the directory itself
+                        # Delete all files in the directory
                         for file in os.listdir(vis_dir):
                             file_path = os.path.join(vis_dir, file)
                             if os.path.isfile(file_path):
@@ -406,3 +520,39 @@ class VisualizationManager:
         except Exception as e:
             logger.error(f"Error clearing visualizations: {str(e)}")
             return False
+    
+    def get_available_components(self) -> List[str]:
+        """
+        Get list of available visualization components.
+        
+        Returns:
+            List of component names
+        """
+        return list(self.visualizers.keys())
+    
+    def get_component_status(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Get status of all visualization components.
+        
+        Returns:
+            Dictionary mapping component names to status info
+        """
+        status = {}
+        
+        for component, visualizer in self.visualizers.items():
+            # Check if component has visualizations
+            has_visualizations = component in self.visualization_outputs and len(self.visualization_outputs[component]) > 0
+            
+            # Get visualization count
+            vis_count = len(self.visualization_outputs.get(component, {}))
+            
+            # Get visualizer directory
+            vis_dir = visualizer.vis_dir if hasattr(visualizer, 'vis_dir') else None
+            
+            status[component] = {
+                'has_visualizations': has_visualizations,
+                'visualization_count': vis_count,
+                'directory': vis_dir
+            }
+        
+        return status
