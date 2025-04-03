@@ -20,6 +20,7 @@ from config.settings import (
     USER_DATA_FILE,
     IDEA_DATA_FILE,
     STEP_DATA_FILE,
+    CATEGORIZED_IDEA_FILE,
     COURSE_EVAL_DIR,
     
     # OpenAI configurations

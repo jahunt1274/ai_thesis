@@ -48,6 +48,7 @@ for directory in [
 USER_DATA_FILE = os.environ.get('AI_THESIS_USER_DATA', str(Path(DATA_DIR) / 'users.json'))
 IDEA_DATA_FILE = os.environ.get('AI_THESIS_IDEA_DATA', str(Path(DATA_DIR) / 'ideas.json'))
 STEP_DATA_FILE = os.environ.get('AI_THESIS_STEP_DATA', str(Path(DATA_DIR) / 'steps.json'))
+CATEGORIZED_IDEA_FILE = os.environ.get('AI_THESIS_CATEGORIZED_IDEA_DATA', str(Path(DATA_DIR) / 'categorized_ideas_latest.json'))
 
 # OpenAI API Configuration
 OPENAI_API_KEY = os.environ.get('OPENAI_API_THESIS_KEY', '')

@@ -14,6 +14,7 @@ from config import (
     USER_DATA_FILE, 
     IDEA_DATA_FILE, 
     STEP_DATA_FILE,
+    CATEGORIZED_IDEA_FILE,
     COURSE_EVAL_DIR, 
     OUTPUT_DIR, 
     DEFAULT_MODEL, 
@@ -52,6 +53,12 @@ def parse_arguments() -> argparse.Namespace:
         help="Path to step data file"
     )
     parser.add_argument(
+        '--categorized-file',
+        type=str,
+        default=CATEGORIZED_IDEA_FILE,
+        help='Path to pre-categorized ideas JSON file'
+    )
+    parser.add_argument(
         "--eval-dir",
         type=str,
         default=COURSE_EVAL_DIR,
@@ -88,12 +95,6 @@ def parse_arguments() -> argparse.Namespace:
         type=str,
         default=DEFAULT_MODEL,
         help="OpenAI model to use for idea categorization"
-    )
-    parser.add_argument(
-        '--categorized-file',
-        type=str,
-        default=None,
-        help='Path to pre-categorized ideas JSON file'
     )
     
     # Selective analysis options
@@ -134,7 +135,8 @@ def main() -> int:
     for file_path, file_name in [
         (args.user_file, "user data"),
         (args.idea_file, "idea data"),
-        (args.step_file, "step data")
+        (args.step_file, "step data"),
+        (args.categorized_file, "categorized ideas")
     ]:
         if not os.path.exists(file_path):
             logger.error(f"Input {file_name} file not found: {file_path}")
@@ -161,13 +163,13 @@ def main() -> int:
             user_file=args.user_file,
             idea_file=args.idea_file,
             step_file=args.step_file,
-            output_dir=args.output_dir,
             categorize_ideas=args.categorize_ideas,
-            openai_api_key=args.openai_key,
-            openai_model=args.openai_model,
+            output_dir=args.output_dir,
+            eval_dir=args.eval_dir,
             categorized_ideas_file=args.categorized_file,
             analyze_evaluations=args.analyze_evaluations,
-            eval_dir=args.eval_dir
+            openai_api_key=args.openai_key,
+            openai_model=args.openai_model,
         )
 
         # Run only selected analyses if specified

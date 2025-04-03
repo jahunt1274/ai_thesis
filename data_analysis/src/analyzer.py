@@ -5,7 +5,7 @@ Main analysis orchestrator for the AI thesis analysis.
 import os
 import time
 import json
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 
 from config import (
     OUTPUT_DIR, 
@@ -29,13 +29,13 @@ class Analyzer:
             user_file: Optional[str] = None,
             idea_file: Optional[str] = None,
             step_file: Optional[str] = None,
+            categorized_ideas_file: Optional[str] = None,
             output_dir: str = OUTPUT_DIR,
+            eval_dir: Optional[str] = COURSE_EVAL_DIR,
             categorize_ideas: bool = False,
+            analyze_evaluations: bool = False,
             openai_api_key: Optional[str] = None,
             openai_model: Optional[str] = None,
-            categorized_ideas_file: Optional[str] = None,
-            analyze_evaluations: bool = False,
-            eval_dir: Optional[str] = COURSE_EVAL_DIR
         ):
         """
         Initialize the analyzer.
@@ -44,12 +44,13 @@ class Analyzer:
             user_file:              Path to user data file (optional)
             idea_file:              Path to idea data file (optional)
             step_file:              Path to step data file (optional)
+            categorized_ideas_file: Path to pre-categorized ideas file (optional)
             output_dir:             Directory to save outputs
+            eval_dir:               Directory containing course evaluation files
             categorize_ideas:       Whether to run idea categorization
+            analyze_evaluations:    Whether to run course evaluation analysis
             openai_api_key:         OpenAI API key (required if categorize_ideas=True)
             openai_model:           OpenAI model to use for categorization
-            analyze_evaluations:    Whether to run course evaluation analysis
-            eval_dir:               Directory containing course evaluation files
         """
         self.output_dir = output_dir
         self.categorize_ideas = categorize_ideas
@@ -63,12 +64,13 @@ class Analyzer:
         self.file_handler = FileHandler()
         
         # Initialize data loader
-        self.data_loader = DataLoader(user_file, idea_file, step_file)
+        self.data_loader = DataLoader(user_file, idea_file, step_file, eval_dir)
         
         # Initialize result storage
         self.users = None
         self.ideas = None
         self.steps = None
+        self.evaluations = None
         self.categorized_ideas = None
         self.analysis_results = {}
         self.performance_metrics = {
@@ -98,7 +100,7 @@ class Analyzer:
         # Load and process data
         logger.info("Loading and processing data...")
         component_start = time.time()
-        self.users, self.ideas, self.steps = self.data_loader.load_and_process_all()
+        self.users, self.ideas, self.steps, self.evaluations = self.data_loader.load_and_process_all()
         self.performance_metrics["component_times"]["data_loading"] = time.time() - component_start
         
         # Prepare data dictionary for processors
@@ -106,7 +108,7 @@ class Analyzer:
             'users': self.users,
             'ideas': self.ideas,
             'steps': self.steps,
-            'evaluations': []  # Will be filled later if needed
+            'evaluations': self.evaluations
         }
         
         # Create analyzer factory
@@ -126,31 +128,21 @@ class Analyzer:
         self.analysis_results["activity_analysis"] = activity_results
         self.performance_metrics["component_times"]["activity_analysis"] = time.time() - component_start
         
-        # Handle idea categorization and analysis
-        if self.categorized_ideas_file:
-            logger.info("Running idea categorization analysis...")
-            component_start = time.time()
-            idea_results = factory.run_analyzer('idea', data, 
-                                               categorized_ideas_file=self.categorized_ideas_file)
-            self.analysis_results["idea_analysis"] = idea_results
-            self.performance_metrics["component_times"]["idea_analysis"] = time.time() - component_start
+        # Run course evaluation analysis
+        logger.info("Running course evaluation analysis...")
+        component_start = time.time()
+        eval_results = factory.run_analyzer('course_eval', data)
+        self.analysis_results["course_evaluations"] = eval_results
+        self.performance_metrics["component_times"]["course_evaluation_analysis"] = time.time() - component_start
         
-        # Run course evaluation analysis if enabled
-        if self.analyze_evaluations:
-            logger.info("Running course evaluation analysis...")
-            component_start = time.time()
-
-            # Load course evaluations
-            course_eval_loader = CourseEvaluationLoader(self.eval_dir)
-            evaluations = course_eval_loader.process()
-            
-            # Add evaluations to data
-            data['evaluations'] = evaluations
-            
-            # Run analysis
-            eval_results = factory.run_analyzer('course_eval', data)
-            self.analysis_results["course_evaluations"] = eval_results
-            self.performance_metrics["component_times"]["course_evaluation_analysis"] = time.time() - component_start
+        # Handle idea categorization and analysis
+        logger.info("Running idea categorization analysis...")
+        component_start = time.time()
+        idea_results = factory.run_analyzer('idea', data, 
+                                            categorized_ideas_file=self.categorized_ideas_file)
+        self.analysis_results["idea_analysis"] = idea_results
+        self.performance_metrics["component_times"]["idea_analysis"] = time.time() - component_start
+        
         
         # Calculate total runtime
         self.performance_metrics["end_time"] = time.time()
@@ -186,6 +178,9 @@ class Analyzer:
         """
         self.performance_metrics["start_time"] = time.time()
         
+        # TODO 
+        # 1. Incorporate the new processors in main
+        # 2. Remove this map
         # Create mapping from old analysis names to new processor types
         analysis_mapping = {
             'demographics': 'user',
@@ -195,7 +190,10 @@ class Analyzer:
             'course_evaluations': 'course_eval'
         }
         
-        # Create list of processor types to run
+        # TODO 
+        # 1. Incorporate the new processors in main
+        # 2. Modify this loop
+        # # Create list of processor types to run
         processor_types = []
         for analysis_name, selected in analyses.items():
             if selected and analysis_name in analysis_mapping:
@@ -207,7 +205,7 @@ class Analyzer:
         if processor_types:
             logger.info("Loading and processing data...")
             component_start = time.time()
-            self.users, self.ideas, self.steps = self.data_loader.load_and_process_all()
+            self.users, self.ideas, self.steps, self.evaluations = self.data_loader.load_and_process_all()
             self.performance_metrics["component_times"]["data_loading"] = time.time() - component_start
             
             # Prepare data dictionary for processors

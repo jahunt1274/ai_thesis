@@ -14,7 +14,7 @@ from typing import Dict, Any
 
 from config import COURSE_EVAL_DIR, COURSE_EVAL_RESULTS_DIR, OUTPUT_DIR
 from src.loaders.course_eval_loader import CourseEvaluationLoader
-from src.processors.course_eval_analyzer import CourseEvaluationAnalyzer
+from src.processors import CourseEvaluationAnalyzer
 from src.visualizers.course_eval_visualizer import CourseEvaluationVisualizer
 from src.utils import get_logger, FileHandler
 
