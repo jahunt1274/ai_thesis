@@ -10,6 +10,7 @@ import squarify
 from typing import Dict, List, Any, Optional
 from collections import defaultdict
 
+from src.constants.data_constants import IDEA_DOMAIN_CATEGORIES
 from src.visualizers.base_visualizer import BaseVisualizer
 from src.utils import get_logger
 
@@ -294,34 +295,13 @@ class CategorizationVisualizer(BaseVisualizer):
             Path to the visualization file
         """
         try:
-            # Group categories into high-level domains
-            domain_clusters = {
-                "Technology": ["Artificial Intelligence", "Software", "Hardware", "Data Analytics", 
-                              "Information Technology", "Mobile", "Apps", "Platforms", 
-                              "Internet Services", "Robotics"],
-                "Business Services": ["Corporate Services", "Professional Services", "Administrative Services",
-                                     "Consulting", "Sales and Marketing", "Financial Services"],
-                "Consumer": ["Consumer Goods", "Consumer Electronics", "Commerce and Shopping", 
-                            "Clothing and Apparel", "Food and Beverage", "Consumer Services"],
-                "Health & Science": ["Biotechnology", "Health Care", "Science and Engineering", 
-                                    "Medical Devices", "Pharmaceuticals"],
-                "Media & Entertainment": ["Media and Entertainment", "Content and Publishing", 
-                                         "Entertainment", "Music and Audio", "Gaming"],
-                "Education": ["Education", "E-Learning", "EdTech"],
-                "Sustainability": ["Climate Tech", "Sustainability", "Energy", "Renewable Energy"],
-                "Finance": ["Financial Services", "Lending and Investments", "Payments", 
-                           "Insurance", "Banking", "Cryptocurrency"],
-                "Other": ["Social and Non-Profit", "Arts", "Community and Lifestyle", "Sports",
-                         "Events", "Government and Military", "Agriculture and Farming", "Real Estate"]
-            }
-            
             # Map categories to domains and count
             domain_counts = defaultdict(int)
             unmapped_categories = []
             
             for category, count in category_counts.items():
                 mapped = False
-                for domain, domain_categories in domain_clusters.items():
+                for domain, domain_categories in IDEA_DOMAIN_CATEGORIES.items():
                     if category in domain_categories:
                         domain_counts[domain] += count
                         mapped = True

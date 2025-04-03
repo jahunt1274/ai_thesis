@@ -55,7 +55,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=str,
-        default=os.path.join(OUTPUT_DIR, "cohort_analysis"),
+        default=os.path.join(OUTPUT_DIR, "visualizations"),
         help="Directory to save output files"
     )
 

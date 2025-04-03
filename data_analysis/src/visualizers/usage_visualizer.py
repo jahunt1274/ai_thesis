@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from typing import Dict, Any, Optional
 
 from src.visualizers.base_visualizer import BaseVisualizer
-from src.utils import get_logger
+from src.utils import get_logger, DateUtils
 
 logger = get_logger("usage_visualizer")
 
@@ -256,7 +256,7 @@ class UsageVisualizer(BaseVisualizer):
         counts = []
         
         for date_str, count in sorted(monthly_active_users.items()):
-            date_obj = self.parse_date(f"{date_str}-01")  # Add day to create valid date
+            date_obj = DateUtils.parse_date(f"{date_str}-01")  # Add day to create valid date
             if date_obj:
                 dates.append(date_obj)
                 counts.append(count)
@@ -590,7 +590,7 @@ class UsageVisualizer(BaseVisualizer):
         avg_progress_values = []
         
         for date_str, data in sorted(daily_counts.items()):
-            date_obj = self.parse_date(date_str)
+            date_obj = DateUtils.parse_date(date_str)
             if date_obj:
                 dates.append(date_obj)
                 idea_counts.append(data.get('count', 0))
@@ -650,7 +650,7 @@ class UsageVisualizer(BaseVisualizer):
         avg_ideas_per_day = []
         
         for month_str, data in sorted(monthly_stats.items()):
-            date_obj = self.parse_date(f"{month_str}-01")  # Add day to create valid date
+            date_obj = DateUtils.parse_date(f"{month_str}-01")  # Add day to create valid date
             if date_obj:
                 months.append(date_obj)
                 total_ideas.append(data.get('total_ideas', 0))

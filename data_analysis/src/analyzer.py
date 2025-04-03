@@ -5,7 +5,7 @@ Main analysis orchestrator for the AI thesis analysis.
 import os
 import time
 import json
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional
 
 from config import (
     OUTPUT_DIR, 
@@ -14,14 +14,7 @@ from config import (
     COURSE_EVAL_DIR
 )
 from src.loaders import DataLoader, CourseEvaluationLoader
-from src.processors import (
-    DemographicAnalyzer, 
-    UsageAnalyzer, 
-    EngagementAnalyzer,
-    CategoryMerger,
-    IdeaCategoryAnalyzer,
-    CourseEvaluationAnalyzer
-)
+from src.processors import CategoryMerger, ProcessorFactory
 from src.visualizers import VisualizationManager
 from src.utils import FileHandler, get_logger
 
@@ -108,58 +101,56 @@ class Analyzer:
         self.users, self.ideas, self.steps = self.data_loader.load_and_process_all()
         self.performance_metrics["component_times"]["data_loading"] = time.time() - component_start
         
-        # Run demographic analysis
-        logger.info("Running demographic analysis...")
-        component_start = time.time()
-        demographic_analyzer = DemographicAnalyzer(self.users)
-        demographic_results = demographic_analyzer.analyze()
-        self.analysis_results["demographics"] = demographic_results
-        self.performance_metrics["component_times"]["demographic_analysis"] = time.time() - component_start
+        # Prepare data dictionary for processors
+        data = {
+            'users': self.users,
+            'ideas': self.ideas,
+            'steps': self.steps,
+            'evaluations': []  # Will be filled later if needed
+        }
         
-        # Run usage analysis
-        logger.info("Running usage analysis...")
-        component_start = time.time()
-        usage_analyzer = UsageAnalyzer(self.users, self.ideas)
-        usage_results = usage_analyzer.analyze()
-        self.analysis_results["usage"] = usage_results
-        self.performance_metrics["component_times"]["usage_analysis"] = time.time() - component_start
+        # Create analyzer factory
+        factory = ProcessorFactory()
         
-        # Run engagement analysis
-        logger.info("Running engagement analysis...")
+        # Run user analysis
+        logger.info("Running user analysis...")
         component_start = time.time()
-        engagement_analyzer = EngagementAnalyzer(self.users, self.ideas, self.steps)
-        engagement_results = engagement_analyzer.analyze()
-        self.analysis_results["engagement"] = engagement_results
-        self.performance_metrics["component_times"]["engagement_analysis"] = time.time() - component_start
+        user_results = factory.run_analyzer('user', data)
+        self.analysis_results["user_analysis"] = user_results
+        self.performance_metrics["component_times"]["user_analysis"] = time.time() - component_start
+        
+        # Run activity analysis
+        logger.info("Running activity analysis...")
+        component_start = time.time()
+        activity_results = factory.run_analyzer('activity', data)
+        self.analysis_results["activity_analysis"] = activity_results
+        self.performance_metrics["component_times"]["activity_analysis"] = time.time() - component_start
+        
+        # Handle idea categorization and analysis
+        if self.categorized_ideas_file:
+            logger.info("Running idea categorization analysis...")
+            component_start = time.time()
+            idea_results = factory.run_analyzer('idea', data, 
+                                               categorized_ideas_file=self.categorized_ideas_file)
+            self.analysis_results["idea_analysis"] = idea_results
+            self.performance_metrics["component_times"]["idea_analysis"] = time.time() - component_start
         
         # Run course evaluation analysis if enabled
         if self.analyze_evaluations:
             logger.info("Running course evaluation analysis...")
             component_start = time.time()
+
             # Load course evaluations
             course_eval_loader = CourseEvaluationLoader(self.eval_dir)
             evaluations = course_eval_loader.process()
             
-            # Analyze evaluations
-            course_eval_analyzer = CourseEvaluationAnalyzer(evaluations)
-            evaluation_results = course_eval_analyzer.analyze()
-            self.analysis_results["course_evaluations"] = evaluation_results
+            # Add evaluations to data
+            data['evaluations'] = evaluations
+            
+            # Run analysis
+            eval_results = factory.run_analyzer('course_eval', data)
+            self.analysis_results["course_evaluations"] = eval_results
             self.performance_metrics["component_times"]["course_evaluation_analysis"] = time.time() - component_start
-        
-        # Handle categorized ideas (either from file or by running categorization)
-        categorized_ideas = self._handle_categorization()
-        if categorized_ideas:
-            # Run category analysis
-            logger.info("Running category analysis...")
-            component_start = time.time()
-            category_analyzer = IdeaCategoryAnalyzer(categorized_ideas)
-            category_results = category_analyzer.analyze()
-            self.analysis_results["categorization"] = category_results
-            self.performance_metrics["component_times"]["category_analysis"] = time.time() - component_start
-        
-        # Run idea categorization analysis
-        logger.info("Running idea categorization analysis...")
-        component_start = time.time()
         
         # Calculate total runtime
         self.performance_metrics["end_time"] = time.time()
@@ -195,74 +186,71 @@ class Analyzer:
         """
         self.performance_metrics["start_time"] = time.time()
         
-        is_demographic_analysis = analyses.get('demographics', False)
-        is_usage_analysis = analyses.get('usage', False)
-        is_engagement_analysis = analyses.get('engagement', False)
-        is_course_evaluation_analysis = analyses.get('course_evaluations', False)
-        is_idea_categorizations_analysis = analyses.get('categorization', False)
+        # Create mapping from old analysis names to new processor types
+        analysis_mapping = {
+            'demographics': 'user',
+            'usage': 'activity',
+            'engagement': 'activity',
+            'categorization': 'idea',
+            'course_evaluations': 'course_eval'
+        }
+        
+        # Create list of processor types to run
+        processor_types = []
+        for analysis_name, selected in analyses.items():
+            if selected and analysis_name in analysis_mapping:
+                processor_type = analysis_mapping[analysis_name]
+                if processor_type not in processor_types:
+                    processor_types.append(processor_type)
         
         # Load data if any analysis is selected
-        if (is_demographic_analysis
-            or is_usage_analysis
-            or is_engagement_analysis
-        ):
-            logger.info("Loading and processing user, idea, and step data...")
+        if processor_types:
+            logger.info("Loading and processing data...")
             component_start = time.time()
             self.users, self.ideas, self.steps = self.data_loader.load_and_process_all()
             self.performance_metrics["component_times"]["data_loading"] = time.time() - component_start
-        
-        # Run demographic analysis if selected
-        if is_demographic_analysis:
-            logger.info("Running demographic analysis...")
-            component_start = time.time()
-            demographic_analyzer = DemographicAnalyzer(self.users)
-            demographic_results = demographic_analyzer.analyze()
-            self.analysis_results["demographics"] = demographic_results
-            self.performance_metrics["component_times"]["demographic_analysis"] = time.time() - component_start
-        
-        # Run usage analysis if selected
-        if is_usage_analysis:
-            logger.info("Running usage analysis...")
-            component_start = time.time()
-            usage_analyzer = UsageAnalyzer(self.users, self.ideas)
-            usage_results = usage_analyzer.analyze()
-            self.analysis_results["usage"] = usage_results
-            self.performance_metrics["component_times"]["usage_analysis"] = time.time() - component_start
-        
-        # Run engagement analysis if selected
-        if is_engagement_analysis:
-            logger.info("Running engagement analysis...")
-            component_start = time.time()
-            engagement_analyzer = EngagementAnalyzer(self.users, self.ideas, self.steps)
-            engagement_results = engagement_analyzer.analyze()
-            self.analysis_results["engagement"] = engagement_results
-            self.performance_metrics["component_times"]["engagement_analysis"] = time.time() - component_start
-        
-        # Run course evaluation analysis if selected
-        if is_course_evaluation_analysis:
-            logger.info("Running course evaluation analysis...")
-            component_start = time.time()
             
-            # Load course evaluations
-            course_eval_loader = CourseEvaluationLoader(self.eval_dir)
-            evaluations = course_eval_loader.process()
+            # Prepare data dictionary for processors
+            data = {
+                'users': self.users,
+                'ideas': self.ideas,
+                'steps': self.steps,
+                'evaluations': []  # Will be filled later if needed
+            }
             
-            # Analyze evaluations
-            course_eval_analyzer = CourseEvaluationAnalyzer(evaluations)
-            evaluation_results = course_eval_analyzer.analyze()
-            self.analysis_results["course_evaluations"] = evaluation_results
-            self.performance_metrics["component_times"]["course_evaluation_analysis"] = time.time() - component_start
-        
-        # Run categorization analysis if selected
-        if is_idea_categorizations_analysis:
-            categorized_ideas = self._handle_categorization()
-            if categorized_ideas:
-                logger.info("Running category analysis...")
+            # Create analyzer factory
+            factory = ProcessorFactory()
+            
+            # Run each selected processor
+            for processor_type in processor_types:
+                logger.info(f"Running {processor_type} analysis...")
                 component_start = time.time()
-                category_analyzer = IdeaCategoryAnalyzer(categorized_ideas)
-                category_results = category_analyzer.analyze()
-                self.analysis_results["categorization"] = category_results
-                self.performance_metrics["component_times"]["category_analysis"] = time.time() - component_start
+                
+                # Special handling for idea analyzer
+                if processor_type == 'idea':
+                    results = factory.run_analyzer(processor_type, data, 
+                                                 categorized_ideas_file=self.categorized_ideas_file)
+                    self.analysis_results["idea_analysis"] = results
+                
+                # Special handling for course evaluation analyzer
+                elif processor_type == 'course_eval':
+                    # Load course evaluations
+                    course_eval_loader = CourseEvaluationLoader(self.eval_dir)
+                    evaluations = course_eval_loader.process()
+                    
+                    # Add evaluations to data
+                    data['evaluations'] = evaluations
+                    
+                    # Run analysis
+                    results = factory.run_analyzer(processor_type, data)
+                    self.analysis_results["course_evaluations"] = results
+                
+                # Standard handling for other analyzers
+                else:
+                    results = factory.run_analyzer(processor_type, data)
+                    self.analysis_results[f"{processor_type}_analysis"] = results
+                
+                self.performance_metrics["component_times"][f"{processor_type}_analysis"] = time.time() - component_start
         
         # Calculate total runtime
         self.performance_metrics["end_time"] = time.time()

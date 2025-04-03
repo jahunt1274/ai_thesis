@@ -11,7 +11,7 @@ from typing import Dict, List, Any, Optional, Tuple, Union, Callable
 from abc import ABC, abstractmethod
 from datetime import datetime
 
-from src.utils import get_logger, FileHandler
+from src.utils import get_logger, FileHandler, StatsUtils
 
 logger = get_logger("visualizer")
 
@@ -558,36 +558,6 @@ class BaseVisualizer(ABC):
         ax.xaxis.set_major_locator(mdates.MonthLocator(interval=interval))
         plt.setp(ax.get_xticklabels(), rotation=rotation, ha='right')
     
-    def parse_date(self, date_string: str) -> Optional[datetime]:
-        """
-        Parse a date string in various formats.
-        
-        Args:
-            date_string: Date string to parse
-            
-        Returns:
-            Datetime object or None if parsing failed
-        """
-        if not date_string:
-            return None
-        
-        # Try various date formats
-        formats = [
-            '%Y-%m-%dT%H:%M:%S.%fZ',  # ISO format with milliseconds
-            '%Y-%m-%dT%H:%M:%SZ',     # ISO format without milliseconds
-            '%Y-%m-%d',               # Simple date format
-            '%Y/%m/%d',               # Alternative date format
-            '%Y-%m',                  # Year-Month format
-        ]
-        
-        for fmt in formats:
-            try:
-                return datetime.strptime(date_string, fmt)
-            except ValueError:
-                continue
-        
-        return None
-    
     def highlight_tool_changes(self, 
                               ax: plt.Axes, 
                               tool_versions: List, 
@@ -609,73 +579,6 @@ class BaseVisualizer(ABC):
             if tool_versions[i] != tool_versions[i-1]:
                 ax.axvline(x=i-offset, **style)
     
-    def calculate_trend(self, values: List[float]) -> Dict[str, Any]:
-        """
-        Calculate a simple linear trend from a series of values.
-        
-        Args:
-            values: List of numerical values
-            
-        Returns:
-            Dictionary with trend metrics
-        """
-        if not values or len(values) < 2:
-            return {
-                'direction': 'unknown',
-                'slope': None,
-                'consistent': None
-            }
-        
-        # Calculate simple slope between first and last value
-        first = values[0]
-        last = values[-1]
-        total_change = last - first
-        
-        # Determine direction
-        if total_change > 0:
-            direction = 'increasing'
-        elif total_change < 0:
-            direction = 'decreasing'
-        else:
-            direction = 'stable'
-        
-        # Calculate a simple linear regression
-        x = list(range(len(values)))
-        n = len(x)
-        
-        # Calculate slope and intercept
-        sum_x = sum(x)
-        sum_y = sum(values)
-        sum_xy = sum(x[i] * values[i] for i in range(n))
-        sum_xx = sum(x[i] * x[i] for i in range(n))
-        
-        try:
-            slope = (n * sum_xy - sum_x * sum_y) / (n * sum_xx - sum_x * sum_x)
-            intercept = (sum_y - slope * sum_x) / n
-            
-            # Calculate predicted values and R-squared
-            y_pred = [slope * x_i + intercept for x_i in x]
-            
-            ss_total = sum((y - (sum_y / n))**2 for y in values)
-            ss_residual = sum((values[i] - y_pred[i])**2 for i in range(n))
-            
-            r_squared = 1 - (ss_residual / ss_total) if ss_total != 0 else 0
-            
-            return {
-                'direction': direction,
-                'slope': slope,
-                'intercept': intercept,
-                'r_squared': r_squared,
-                'total_change': total_change,
-                'percent_change': (total_change / first) * 100 if first != 0 else None
-            }
-        except ZeroDivisionError:
-            return {
-                'direction': direction,
-                'slope': 0,
-                'total_change': total_change
-            }
-    
     def add_trend_line(self, 
                       ax: plt.Axes, 
                       x: List, 
@@ -696,7 +599,7 @@ class BaseVisualizer(ABC):
             return
             
         # Calculate trend
-        trend = self.calculate_trend(y)
+        trend = StatsUtils.calculate_trend(y)
         
         if trend.get('slope') is not None:
             # Create trend line points

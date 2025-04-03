@@ -9,7 +9,7 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 
 from src.visualizers.base_visualizer import BaseVisualizer
-from src.utils import get_logger
+from src.utils import get_logger, DateUtils
 
 logger = get_logger("demographic_visualizer")
 
@@ -202,7 +202,7 @@ class DemographicVisualizer(BaseVisualizer):
         counts = []
         
         for date_str, count in sorted(creation_dates.items()):
-            date_obj = self.parse_date(date_str)
+            date_obj = DateUtils.parse_date(date_str)
             if date_obj:
                 dates.append(date_obj)
                 counts.append(count)
