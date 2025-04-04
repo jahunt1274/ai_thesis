@@ -51,7 +51,8 @@ class IdeaVisualizer(BaseVisualizer):
         visualization_map = {
             "category_distribution": (
                 self._visualize_category_distribution,
-                {"data_key": "category_distribution"},
+                {"data_key": "category_counts"},
+                # {"data_key": "category_distribution"},
             ),
             "top_categories": (
                 self._visualize_top_categories,

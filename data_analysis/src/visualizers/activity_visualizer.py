@@ -67,11 +67,13 @@ class ActivityVisualizer(BaseVisualizer):
             ),
             "time_based": (
                 self._visualize_time_based_engagement,
-                {"data_key": "time_based_engagement"},
+                # {"data_key": "time_based_engagement"},
+                {"data_key": "timeline"},
             ),
             "idea_characterization": (
                 self._visualize_idea_characterization,
-                {"data_key": "idea_characterization"},
+                # {"data_key": "idea_characterization"},
+                {"data_key": "engagement_levels.idea_characterization"},
             ),
             "framework_usage": (
                 self._visualize_framework_usage,
