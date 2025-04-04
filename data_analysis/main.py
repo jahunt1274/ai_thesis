@@ -11,17 +11,16 @@ import sys
 from typing import Dict, Any
 
 from config import (
-    USER_DATA_FILE, 
-    IDEA_DATA_FILE, 
+    USER_DATA_FILE,
+    IDEA_DATA_FILE,
     STEP_DATA_FILE,
     CATEGORIZED_IDEA_FILE,
-    COURSE_EVAL_DIR, 
-    OUTPUT_DIR, 
-    DEFAULT_MODEL, 
-    OPENAI_API_KEY
+    COURSE_EVAL_DIR,
+    OUTPUT_DIR,
+    COMBINED_RESULTS_DIR,
 )
 from src.analyzer import Analyzer
-from src.utils import get_logger
+from src.utils import get_logger, FileHandler
 
 logger = get_logger("main")
 
@@ -30,39 +29,30 @@ def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
         description="AI Thesis Analysis System",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    
+
     # Input data options
     parser.add_argument(
-        "--user-file",
-        type=str,
-        default=USER_DATA_FILE,
-        help="Path to user data file"
+        "--user-file", type=str, default=USER_DATA_FILE, help="Path to user data file"
     )
     parser.add_argument(
-        "--idea-file",
-        type=str,
-        default=IDEA_DATA_FILE,
-        help="Path to idea data file"
+        "--idea-file", type=str, default=IDEA_DATA_FILE, help="Path to idea data file"
     )
     parser.add_argument(
-        "--step-file",
-        type=str,
-        default=STEP_DATA_FILE,
-        help="Path to step data file"
+        "--step-file", type=str, default=STEP_DATA_FILE, help="Path to step data file"
     )
     parser.add_argument(
-        '--categorized-file',
+        "--categorized-file",
         type=str,
         default=CATEGORIZED_IDEA_FILE,
-        help='Path to pre-categorized ideas JSON file'
+        help="Path to pre-categorized ideas JSON file",
     )
     parser.add_argument(
         "--eval-dir",
         type=str,
         default=COURSE_EVAL_DIR,
-        help="Directory containing course evaluation files"
+        help="Directory containing course evaluation files",
     )
 
     # Output options
@@ -70,142 +60,221 @@ def parse_arguments() -> argparse.Namespace:
         "--output-dir",
         type=str,
         default=OUTPUT_DIR,
-        help="Directory to save output files"
+        help="Directory to save output files",
     )
-    
+
     # Analysis options
-    parser.add_argument(
-        "--categorize-ideas",
-        action="store_true",
-        help="Run idea categorization using OpenAI API"
-    )
     parser.add_argument(
         "--analyze-evaluations",
         action="store_true",
-        help="Run course evaluation analysis"
+        help="Run course evaluation analysis",
     )
+
+    # Data filtering options
     parser.add_argument(
-        "--openai-key",
+        "--filter-course",
         type=str,
-        default=OPENAI_API_KEY,
-        help="OpenAI API key for idea categorization"
+        default=None,
+        help="Filter analysis to users enrolled in this course",
     )
     parser.add_argument(
-        "--openai-model",
+        "--filter-user-type",
         type=str,
-        default=DEFAULT_MODEL,
-        help="OpenAI model to use for idea categorization"
+        default=None,
+        help="Filter analysis to users of this type",
     )
-    
-    # Selective analysis options
     parser.add_argument(
-        "--demographic-only",
+        "--filter-activity",
         action="store_true",
-        help="Run only demographic analysis"
+        help="Filter out inactive users (no ideas or steps)",
     )
     parser.add_argument(
-        "--usage-only",
+        "--filter-date-range",
+        type=str,
+        nargs=2,
+        metavar=("START_DATE", "END_DATE"),
+        help="Filter data by date range (YYYY-MM-DD format)",
+    )
+
+    # Visualization options
+    parser.add_argument(
+        "--visualize-only",
         action="store_true",
-        help="Run only usage analysis"
+        help="Only generate visualizations from existing analysis results",
     )
     parser.add_argument(
-        "--engagement-only",
-        action="store_true",
-        help="Run only engagement analysis"
+        "--results-file",
+        type=str,
+        default=None,
+        help="Path to existing analysis results file (for --visualize-only)",
     )
-    parser.add_argument(
-        "--categorization-only",
-        action="store_true",
-        help="Run only categorization analysis"
+
+    # Selective analysis options (mutually exclusive)
+    analysis_group = parser.add_mutually_exclusive_group()
+    analysis_group.add_argument(
+        "--run-all", action="store_true", help="Run all analysis types (default)"
     )
-    parser.add_argument(
+    analysis_group.add_argument(
+        "--user-only", action="store_true", help="Run only user analysis"
+    )
+    analysis_group.add_argument(
+        "--activity-only", action="store_true", help="Run only activity analysis"
+    )
+    analysis_group.add_argument(
+        "--idea-only", action="store_true", help="Run only idea analysis"
+    )
+    analysis_group.add_argument(
         "--evaluations-only",
         action="store_true",
-        help="Run only course evaluation analysis"
+        help="Run only course evaluation analysis",
     )
-    
+
     return parser.parse_args()
 
+def get_selected_analyses(args: argparse.Namespace) -> Dict[str, bool]:
+    """
+    Determine which analyses to run based on command-line arguments.
+
+    Args:
+        args: Command-line arguments
+
+    Returns:
+        Dictionary mapping analysis types to boolean flags
+    """
+    # Check for selective options
+    if args.user_only:
+        return {"user": True}
+    elif args.activity_only:
+        return {"activity": True}
+    elif args.idea_only:
+        return {"idea": True}
+    elif args.evaluations_only:
+        return {"course_eval": True}
+
+    # Default: run standard analyses plus any additionally requested ones
+    analyses = {
+        "user": True,
+        "activity": True,
+        "idea": True,
+        "course_eval": args.analyze_evaluations,
+    }
+
+    return analyses
+
+
+def prepare_filter_params(args: argparse.Namespace) -> Dict[str, Any]:
+    """
+    Prepare filter parameters from command-line arguments.
+
+    Args:
+        args: Command-line arguments
+
+    Returns:
+        Dictionary of filter parameters
+    """
+    filter_params = {}
+
+    if args.filter_course:
+        filter_params["course"] = args.filter_course
+
+    if args.filter_user_type:
+        filter_params["user_type"] = args.filter_user_type
+
+    if args.filter_activity:
+        filter_params["activity"] = True
+        filter_params["min_ideas"] = 1
+        filter_params["min_steps"] = 0
+
+    if args.filter_date_range:
+        filter_params["date_range"] = args.filter_date_range
+
+    return filter_params
 
 def main() -> int:
     """Main entry point."""
     args = parse_arguments()
-    
+
+    # Validate input files based on the analyses to be run
+    selected_analyses = get_selected_analyses(args)
+    file_handler = FileHandler()
+
     # Validate input files
-    for file_path, file_name in [
-        (args.user_file, "user data"),
-        (args.idea_file, "idea data"),
-        (args.step_file, "step data"),
-        (args.categorized_file, "categorized ideas")
+    for file_path in [
+        args.user_file,
+        args.idea_file,
+        args.step_file,
+        args.categorized_file,
     ]:
-        if not os.path.exists(file_path):
-            logger.error(f"Input {file_name} file not found: {file_path}")
-            return 1
-    
-    # Check OpenAI API key if categorization is requested
-    if args.categorize_ideas and not args.openai_key:
-        logger.error("OpenAI API key is required for idea categorization")
-        return 1
-    
-    # Check categorized file if provided
-    if args.categorized_file and not os.path.exists(args.categorized_file):
-        logger.error(f"Categorized ideas file not found: {args.categorized_file}")
-        return 1
-    
+        file_handler.ensure_file_exists(file_path)
+
     # Check evaluation directory if evaluation analysis is requested
-    if args.analyze_evaluations and not os.path.exists(args.eval_dir):
-        logger.error(f"Course evaluation directory not found: {args.eval_dir}")
-        return 1
-    
+    file_handler.ensure_directory_exists(args.eval_dir)
+
+    # Visualize-only mode - find latest results file if none specified
+    if args.visualize_only and not args.results_file:
+        latest_file = file_handler.get_latest_file(
+            COMBINED_RESULTS_DIR, pattern="analysis_results_combined_*.json"
+        )
+
+        if latest_file:
+            args.results_file = latest_file
+            logger.info(f"Using latest results file: {latest_file}")
+        else:
+            latest_file = os.path.join(
+                COMBINED_RESULTS_DIR, "analysis_results_combined_latest.json"
+            )
+
+            if os.path.exists(latest_file):
+                args.results_file = latest_file
+                logger.info(f"Using latest results file: {latest_file}")
+            else:
+                logger.error("No results file found for visualization-only mode")
+                return 1
+
     try:
         # Initialize and run the analyzer
         analyzer = Analyzer(
             user_file=args.user_file,
             idea_file=args.idea_file,
             step_file=args.step_file,
-            categorize_ideas=args.categorize_ideas,
+            categorized_ideas_file=args.categorized_file,
             output_dir=args.output_dir,
             eval_dir=args.eval_dir,
-            categorized_ideas_file=args.categorized_file,
             analyze_evaluations=args.analyze_evaluations,
-            openai_api_key=args.openai_key,
-            openai_model=args.openai_model,
         )
 
-        # Run only selected analyses if specified
-        if (args.demographic_only 
-            or args.usage_only 
-            or args.engagement_only 
-            or args.categorization_only 
-            or args.evaluations_only
-        ):
-            logger.info("Running selected analyses only")
-            
-            # Create a dictionary to track which analyses to run
-            analyses_to_run = {
-                'demographics': args.demographic_only,
-                'usage': args.usage_only,
-                'engagement': args.engagement_only,
-                'categorization': args.categorization_only,
-                'course_evaluations': args.evaluations_only
-            }
-
-            # If none are True but selective flags are used, run none
-            if not any(analyses_to_run.values()):
-                logger.warning("No specific analyses selected, but selective flags used.")
-                return 1
-            
-            # Run selected analyses
-            logger.info(f"Running selected analyses: {[k for k, v in analyses_to_run.items() if v]}")
-            results = analyzer.selective_run(analyses_to_run)
-        
+        # Run analysis based on mode
+        if args.visualize_only:
+            # Visualization-only mode
+            results = analyzer.run_from_results(args.results_file)
         else:
-            # Run the analyzer
-            results = analyzer.run()
-        
+            # Apply filters if specified
+            filter_params = prepare_filter_params(args)
+            if filter_params:
+                # Load data first
+                analyzer.data_loader.load_and_process_all()
+                # Apply filters
+                analyzer.apply_filters(filter_params)
+
+            # Run either selective or full analysis
+            if any(
+                option
+                for option in [
+                    args.user_only,
+                    args.activity_only,
+                    args.idea_only,
+                    args.evaluations_only,
+                ]
+            ):
+                # Selective analysis
+                results = analyzer.selective_run(selected_analyses)
+            else:
+                # Full analysis
+                results = analyzer.run()
+
         logger.info("Analysis completed successfully")
         return 0
-        
+
     except Exception as e:
         logger.error(f"Error running analysis: {str(e)}", exc_info=True)
         return 1

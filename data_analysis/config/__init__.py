@@ -15,6 +15,7 @@ from config.settings import (
     USAGE_RESULTS_DIR,
     COMBINED_RESULTS_DIR,
     COURSE_EVAL_RESULTS_DIR,
+    VISUALIZATION_OUTPUT_DIR,
     
     # File configurations
     USER_DATA_FILE,

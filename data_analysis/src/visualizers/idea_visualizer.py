@@ -51,7 +51,7 @@ class IdeaVisualizer(BaseVisualizer):
         visualization_map = {
             "category_distribution": (
                 self._visualize_category_distribution,
-                {"data_key": "category_counts"},
+                {"data_key": "category_distribution"},
             ),
             "top_categories": (
                 self._visualize_top_categories,
@@ -75,13 +75,14 @@ class IdeaVisualizer(BaseVisualizer):
         return self.visualize_all(data, visualization_map)
 
     def _visualize_category_distribution(
-        self, category_counts: Dict[str, int]
+        self, category_counts: Dict[str, int], filename: str
     ) -> Optional[str]:
         """
         Create visualization of idea category distribution.
 
         Args:
             category_counts: Counts by category
+            filename: Base filename for saving
 
         Returns:
             Path to the visualization file
@@ -132,9 +133,7 @@ class IdeaVisualizer(BaseVisualizer):
             plt.tight_layout()
 
             # Save figure
-            output_path = os.path.join(
-                self.vis_dir, f"category_distribution.{self.format}"
-            )
+            output_path = os.path.join(self.vis_dir, f"{filename}.{self.format}")
             plt.savefig(output_path, dpi=300, bbox_inches="tight")
             plt.close()
 
@@ -147,12 +146,15 @@ class IdeaVisualizer(BaseVisualizer):
             plt.close("all")  # Close any open figures
             return None
 
-    def _visualize_top_categories(self, top_categories: List[tuple]) -> Optional[str]:
+    def _visualize_top_categories(
+        self, top_categories: List[tuple], filename: str
+    ) -> Optional[str]:
         """
         Create visualization of top idea categories.
 
         Args:
             top_categories: List of (category, count) tuples
+            filename: Base filename for saving
 
         Returns:
             Path to the visualization file
@@ -199,9 +201,7 @@ class IdeaVisualizer(BaseVisualizer):
             plt.tight_layout()
 
             # Save figure
-            output_path = os.path.join(
-                self.vis_dir, f"top_categories_pie.{self.format}"
-            )
+            output_path = os.path.join(self.vis_dir, f"{filename}_pie.{self.format}")
             plt.savefig(output_path, dpi=300, bbox_inches="tight")
             plt.close()
 
@@ -213,13 +213,14 @@ class IdeaVisualizer(BaseVisualizer):
             return None
 
     def _visualize_category_percentages(
-        self, category_percentages: Dict[str, float]
+        self, category_percentages: Dict[str, float], filename: str
     ) -> Optional[str]:
         """
         Create visualization of category percentages.
 
         Args:
             category_percentages: Percentage by category
+            filename: Base filename for saving
 
         Returns:
             Path to the visualization file
@@ -292,9 +293,7 @@ class IdeaVisualizer(BaseVisualizer):
             plt.tight_layout()
 
             # Save figure
-            output_path = os.path.join(
-                self.vis_dir, f"category_percentages.{self.format}"
-            )
+            output_path = os.path.join(self.vis_dir, f"{filename}.{self.format}")
             plt.savefig(output_path, dpi=300, bbox_inches="tight")
             plt.close()
 
@@ -306,13 +305,14 @@ class IdeaVisualizer(BaseVisualizer):
             return None
 
     def _visualize_category_clusters(
-        self, category_counts: Dict[str, int]
+        self, category_counts: Dict[str, int], filename: str
     ) -> Optional[str]:
         """
         Create visualization of category clusters.
 
         Args:
             category_counts: Counts by category
+            filename: Base filename for saving
 
         Returns:
             Path to the visualization file
@@ -376,7 +376,7 @@ class IdeaVisualizer(BaseVisualizer):
             plt.tight_layout()
 
             # Save figure
-            output_path = os.path.join(self.vis_dir, f"category_clusters.{self.format}")
+            output_path = os.path.join(self.vis_dir, f"{filename}.{self.format}")
             plt.savefig(output_path, dpi=300, bbox_inches="tight")
             plt.close()
 
@@ -388,13 +388,14 @@ class IdeaVisualizer(BaseVisualizer):
             return None
 
     def _visualize_domain_grouping(
-        self, domain_grouping: Dict[str, Any]
+        self, domain_grouping: Dict[str, Any], filename: str
     ) -> Optional[str]:
         """
         Create visualization of domain grouping data.
 
         Args:
             domain_grouping: Domain grouping data
+            filename: Base filename for saving
 
         Returns:
             Path to the visualization file
@@ -465,7 +466,7 @@ class IdeaVisualizer(BaseVisualizer):
             plt.tight_layout(rect=[0, 0, 1, 0.95])  # Adjust for main title
 
             # Save figure
-            output_path = os.path.join(self.vis_dir, f"domain_grouping.{self.format}")
+            output_path = os.path.join(self.vis_dir, f"{filename}.{self.format}")
             plt.savefig(output_path, dpi=300, bbox_inches="tight")
             plt.close()
 

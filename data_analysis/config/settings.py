@@ -29,6 +29,9 @@ COMBINED_RESULTS_DIR = os.environ.get('AI_THESIS_COMBINED_RESULTS_DIR', str(Path
 COURSE_EVAL_DIR = os.environ.get('AI_THESIS_COURSE_EVAL_DIR', str(Path(DATA_DIR) / 'course_evaluations'))
 COURSE_EVAL_RESULTS_DIR = os.environ.get('AI_THESIS_COURSE_EVAL_RESULTS_DIR', str(Path(OUTPUT_DIR) / 'course_eval_analysis'))
 
+# Define path for visualization output
+VISUALIZATION_OUTPUT_DIR = os.environ.get('AI_THESIS_VISUALIZATION_OUTPUT_DIR', str(Path(OUTPUT_DIR) / 'visualizations'))
+
 # Ensure directories exist
 for directory in [
     DATA_DIR, 
@@ -40,7 +43,8 @@ for directory in [
     ENGAGEMENT_RESULTS_DIR,
     COMBINED_RESULTS_DIR,
     COURSE_EVAL_DIR,
-    COURSE_EVAL_RESULTS_DIR
+    COURSE_EVAL_RESULTS_DIR,
+    VISUALIZATION_OUTPUT_DIR
 ]:
     Path(directory).mkdir(exist_ok=True, parents=True)
 
