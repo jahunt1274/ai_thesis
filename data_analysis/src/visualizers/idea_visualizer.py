@@ -5,7 +5,6 @@ Idea visualizer for data analysis.
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
 from typing import Dict, List, Any, Optional
 from collections import defaultdict
 
@@ -18,24 +17,6 @@ logger = get_logger("idea_visualizer")
 
 class IdeaVisualizer(BaseVisualizer):
     """Visualizes idea analysis results."""
-
-    def __init__(self, output_dir: str, format: str = "png"):
-        """
-        Initialize the idea visualizer.
-
-        Args:
-            output_dir: Directory to save visualization outputs
-            format: Output format for visualizations (png, pdf, svg)
-        """
-        super().__init__(output_dir)
-        self.format = format
-
-        # Create output subdirectory
-        self.vis_dir = os.path.join(output_dir, "idea")
-        os.makedirs(self.vis_dir, exist_ok=True)
-
-        # Set default style
-        plt.style.use("seaborn-v0_8-whitegrid")
 
     def visualize(self, data: Dict[str, Any]) -> Dict[str, str]:
         """

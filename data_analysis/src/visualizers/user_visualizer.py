@@ -2,11 +2,9 @@
 User visualizer for data analysis.
 """
 
-import os
 import numpy as np
 import matplotlib.pyplot as plt
 from typing import Dict, List, Any, Optional
-from datetime import datetime
 
 from src.visualizers.base_visualizer import BaseVisualizer
 from src.utils import get_logger, DateUtils

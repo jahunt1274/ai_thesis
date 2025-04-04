@@ -14,7 +14,7 @@ import sys
 import json
 from typing import Dict, Any
 
-from config import OUTPUT_DIR, COMBINED_RESULTS_DIR
+from config import OUTPUT_DIR, COMBINED_RESULTS_DIR, VISUALIZATION_OUTPUT_DIR
 from src.utils import get_logger, FileHandler
 from src.visualizers import VisualizationManager
 
@@ -52,7 +52,9 @@ def main() -> int:
     
     # Set default output directory if not provided
     if args.output_dir is None:
-        args.output_dir = os.path.join(OUTPUT_DIR, "visualizations")
+        # TODO Remove
+        # args.output_dir = os.path.join(OUTPUT_DIR, "visualizations")
+        args.output_dir = VISUALIZATION_OUTPUT_DIR
     
     # Ensure output directory exists
     os.makedirs(args.output_dir, exist_ok=True)

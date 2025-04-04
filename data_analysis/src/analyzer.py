@@ -2,10 +2,8 @@
 Main analysis orchestrator for the AI thesis analysis.
 """
 
-import os
 import time
-import json
-from typing import Dict, List, Any, Optional, Tuple, Set
+from typing import Dict, Any, Optional
 
 from config import (
     OUTPUT_DIR,
@@ -14,8 +12,8 @@ from config import (
     COURSE_EVAL_DIR,
     VISUALIZATION_OUTPUT_DIR,
 )
-from src.loaders import DataLoader, CourseEvaluationLoader
-from src.processors import CategoryMerger, ProcessorFactory
+from src.loaders import DataLoader
+from src.processors import ProcessorFactory
 from src.visualizers import VisualizationManager
 from src.utils import FileHandler, get_logger, DataFilter
 
@@ -80,8 +78,8 @@ class Analyzer:
         # Initialize visualization_outputs attribute
         self.visualization_outputs = {}
 
-        # Create output directory
-        os.makedirs(output_dir, exist_ok=True)
+        # Ensure output directory exists
+        self.file_handler.ensure_directory_exists(output_dir)
 
         logger.info(f"Initialized Analyzer with output directory: {output_dir}")
 

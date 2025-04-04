@@ -3,8 +3,7 @@ Visualization manager for the AI thesis analysis.
 """
 
 import os
-from typing import Dict, List, Any, Optional, Type
-from datetime import datetime
+from typing import Dict, List, Any, Optional
 
 from src.utils import get_logger, FileHandler
 from src.visualizers import (
@@ -12,7 +11,7 @@ from src.visualizers import (
     UserVisualizer,
     ActivityVisualizer,
     IdeaVisualizer,
-    CourseEvaluationVisualizer
+    CourseEvaluationVisualizer,
 )
 
 logger = get_logger("visualization_manager")
@@ -34,11 +33,6 @@ class VisualizationManager:
         self.visualization_outputs = {}
         self.file_handler = FileHandler()
 
-        # Create visualizations output directory
-        vis_output_dir = os.path.join(output_dir, "visualizations")
-        self.file_handler.ensure_directory_exists(vis_output_dir)
-        self.vis_output_dir = vis_output_dir
-
         # Map component names to visualizer classes
         self.visualizer_classes = {
             "user_analysis": UserVisualizer,
@@ -51,7 +45,7 @@ class VisualizationManager:
         self.visualizers = self._create_visualizers()
 
         logger.info(
-            f"Initialized VisualizationManager with output directory: {vis_output_dir}"
+            f"Initialized VisualizationManager with output directory: {self.output_dir}"
         )
 
     def _create_visualizers(self) -> Dict[str, BaseVisualizer]:
@@ -64,9 +58,7 @@ class VisualizationManager:
         visualizers = {}
         for component, visualizer_class in self.visualizer_classes.items():
             try:
-                visualizers[component] = visualizer_class(
-                    self.vis_output_dir, self.format
-                )
+                visualizers[component] = visualizer_class(self.output_dir, self.format)
                 logger.debug(
                     f"Created {visualizer_class.__name__} for component '{component}'"
                 )
@@ -176,7 +168,7 @@ class VisualizationManager:
         logger.info("Generating HTML visualization report")
 
         # Create HTML report directory
-        report_dir = os.path.join(self.vis_output_dir, "visualization_report")
+        report_dir = os.path.join(self.output_dir, "visualization_report")
         self.file_handler.ensure_directory_exists(report_dir)
 
         # Create the report
@@ -496,7 +488,7 @@ class VisualizationManager:
 
             # Copy HTML report if exists
             report_path = os.path.join(
-                self.vis_output_dir, "visualization_report", "visualization_report.html"
+                self.output_dir, "visualization_report", "visualization_report.html"
             )
             if os.path.exists(report_path):
                 target_report_dir = os.path.join(target_dir, "report")

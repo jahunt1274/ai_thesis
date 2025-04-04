@@ -5,10 +5,7 @@ Course evaluation visualizer for data analysis.
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-import seaborn as sns
-from typing import Dict, List, Any, Optional
-from datetime import datetime
+from typing import Dict, Any, Optional
 
 from src.visualizers.base_visualizer import BaseVisualizer
 from src.utils import get_logger

@@ -131,6 +131,7 @@ def parse_arguments() -> argparse.Namespace:
 
     return parser.parse_args()
 
+
 def get_selected_analyses(args: argparse.Namespace) -> Dict[str, bool]:
     """
     Determine which analyses to run based on command-line arguments.
@@ -189,6 +190,7 @@ def prepare_filter_params(args: argparse.Namespace) -> Dict[str, Any]:
         filter_params["date_range"] = args.filter_date_range
 
     return filter_params
+
 
 def main() -> int:
     """Main entry point."""
