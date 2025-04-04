@@ -1,5 +1,5 @@
 """
-Course evaluation visualizer for the AI thesis analysis.
+Course evaluation visualizer for data analysis.
 """
 
 import os
@@ -19,24 +19,6 @@ logger = get_logger("course_eval_visualizer")
 class CourseEvaluationVisualizer(BaseVisualizer):
     """Visualizes course evaluation analysis results."""
 
-    def __init__(self, output_dir: str, format: str = "png"):
-        """
-        Initialize the course evaluation visualizer.
-
-        Args:
-            output_dir: Directory to save visualization outputs
-            format: Output format for visualizations (png, pdf, svg)
-        """
-        super().__init__(output_dir)
-        self.format = format
-
-        # Create output subdirectory
-        self.vis_dir = os.path.join(output_dir, "course_evaluations")
-        os.makedirs(self.vis_dir, exist_ok=True)
-
-        # Set default style
-        plt.style.use("seaborn-v0_8-whitegrid")
-
     def visualize(self, data: Dict[str, Any]) -> Dict[str, str]:
         """
         Generate visualizations for course evaluation analysis.
@@ -47,89 +29,51 @@ class CourseEvaluationVisualizer(BaseVisualizer):
         Returns:
             Dictionary mapping visualization names to file paths
         """
-        logger.info("Generating course evaluation visualizations")
+        # Define visualization mapping
+        visualization_map = {
+            "semester_comparison": (
+                self._visualize_semester_comparison,
+                {"data_key": "semester_comparison"},
+            ),
+            "tool_impact": (self._visualize_tool_impact, {"data_key": "tool_impact"}),
+            "section_performance": (
+                self._visualize_section_performance,
+                {"data_key": "section_analysis"},
+            ),
+            "key_questions": (
+                self._visualize_key_questions,
+                {"data_key": "question_analysis"},
+            ),
+            "rating_trends": (
+                self._visualize_rating_trends,
+                {"data_key": "trend_analysis"},
+            ),
+            "time_spent": (
+                self._visualize_time_spent,
+                {"data_key": "time_spent_analysis"},
+            ),
+            "overall_rating": (
+                self._visualize_overall_rating,
+                {"data_key": "overall_rating_analysis"},
+            ),
+            "rating_time_correlation": (
+                self._visualize_rating_time_correlation,
+                {"data_key": "overall_rating_analysis.correlation_with_time"},
+            ),
+        }
 
-        visualizations = {}
-
-        # Check if necessary data exists
-        if not data:
-            logger.warning("No course evaluation data to visualize")
-            return visualizations
-
-        # Create various evaluation visualizations
-        try:
-            # Semester comparison
-            if "semester_comparison" in data:
-                vis_path = self._visualize_semester_comparison(
-                    data["semester_comparison"]
-                )
-                if vis_path:
-                    visualizations["semester_comparison"] = vis_path
-
-            # Tool impact
-            if "tool_impact" in data:
-                vis_path = self._visualize_tool_impact(data["tool_impact"])
-                if vis_path:
-                    visualizations["tool_impact"] = vis_path
-
-            # Section analysis
-            if "section_analysis" in data:
-                vis_path = self._visualize_section_performance(data["section_analysis"])
-                if vis_path:
-                    visualizations["section_performance"] = vis_path
-
-            # Question analysis
-            if "question_analysis" in data:
-                vis_path = self._visualize_key_questions(data["question_analysis"])
-                if vis_path:
-                    visualizations["key_questions"] = vis_path
-
-            # Rating trends
-            if "trend_analysis" in data:
-                vis_path = self._visualize_rating_trends(data["trend_analysis"])
-                if vis_path:
-                    visualizations["rating_trends"] = vis_path
-
-            # Time spent analysis
-            if "time_spent_analysis" in data:
-                vis_path = self._visualize_time_spent(data["time_spent_analysis"])
-                if vis_path:
-                    visualizations["time_spent"] = vis_path
-
-            # Overall rating analysis
-            if "overall_rating_analysis" in data:
-                vis_path = self._visualize_overall_rating(
-                    data["overall_rating_analysis"]
-                )
-                if vis_path:
-                    visualizations["overall_rating"] = vis_path
-
-                # Also create correlation visualization if data exists
-                correlation_data = data["overall_rating_analysis"].get(
-                    "correlation_with_time", {}
-                )
-                if correlation_data and correlation_data.get("paired_data"):
-                    vis_path = self._visualize_rating_time_correlation(correlation_data)
-                    if vis_path:
-                        visualizations["rating_time_correlation"] = vis_path
-
-            logger.info(
-                f"Generated {len(visualizations)} course evaluation visualizations"
-            )
-            return visualizations
-
-        except Exception as e:
-            logger.error(f"Error creating course evaluation visualizations: {str(e)}")
-            return visualizations
+        # Use the helper method from BaseVisualizer
+        return self.visualize_all(data, visualization_map)
 
     def _visualize_semester_comparison(
-        self, comparison_data: Dict[str, Any]
+        self, comparison_data: Dict[str, Any], filename: str
     ) -> Optional[str]:
         """
         Create visualization of semester comparison.
 
         Args:
             comparison_data: Semester comparison data
+            filename: Base filename for saving
 
         Returns:
             Path to the visualization file
@@ -147,39 +91,23 @@ class CourseEvaluationVisualizer(BaseVisualizer):
                 return None
 
             # Create figure
-            plt.figure(figsize=(12, 8))
+            fig = self.setup_figure(
+                figsize=(12, 8),
+                title="Overall Evaluation Scores by Semester",
+                ylabel="Average Score",
+            )
 
             # Define colors based on tool version
-            colors = [
-                (
-                    "lightgray"
-                    if v is None
-                    else "lightblue" if v == "v1" else "cornflowerblue"
-                )
-                for v in tool_versions
-            ]
+            colors = [self.get_tool_color(v) for v in tool_versions]
 
             # Create bar chart
             bars = plt.bar(semesters, overall_avg, color=colors)
 
             # Add value labels on top of bars
-            for bar in bars:
-                height = bar.get_height()
-                plt.text(
-                    bar.get_x() + bar.get_width() / 2.0,
-                    height + 0.05,
-                    f"{height:.2f}",
-                    ha="center",
-                    va="bottom",
-                )
-
-            # Add title and labels
-            plt.title("Overall Evaluation Scores by Semester", fontsize=16)
-            plt.ylabel("Average Score", fontsize=12)
-            plt.ylim(0, max(overall_avg) * 1.2)  # Add some space at the top
+            self.add_value_labels(plt.gca(), bars, "{:.2f}")
 
             # Add tool version annotations
-            for i, (semester, version) in enumerate(zip(semesters, tool_versions)):
+            for i, version in enumerate(tool_versions):
                 tool_label = "No Tool" if version is None else f"Jetpack {version}"
                 plt.annotate(
                     tool_label,
@@ -211,27 +139,26 @@ class CourseEvaluationVisualizer(BaseVisualizer):
                 )
                 plt.legend()
 
+            plt.ylim(0, max(overall_avg) * 1.2)  # Add some space at the top
             plt.tight_layout()
 
             # Save figure
-            output_path = os.path.join(
-                self.vis_dir, f"semester_comparison.{self.format}"
-            )
-            plt.savefig(output_path, dpi=300, bbox_inches="tight")
-            plt.close()
-
-            return output_path
+            return self.save_figure(filename)
 
         except Exception as e:
             logger.error(f"Error creating semester comparison visualization: {str(e)}")
+            plt.close("all")  # Close any open figures
             return None
 
-    def _visualize_tool_impact(self, impact_data: Dict[str, Any]) -> Optional[str]:
+    def _visualize_tool_impact(
+        self, impact_data: Dict[str, Any], filename: str
+    ) -> Optional[str]:
         """
         Create visualization of tool impact.
 
         Args:
             impact_data: Tool impact data
+            filename: Base filename for saving
 
         Returns:
             Path to the visualization file
@@ -257,19 +184,16 @@ class CourseEvaluationVisualizer(BaseVisualizer):
                 version_metrics.items(), key=lambda item: (item[0] is not None, item[0])
             ):
                 # Format the version name
-                # version_name = 'No Tool' if version == 'none' else f'Jetpack {version}'
                 version_name = "No Tool" if not version else f"Jetpack {version}"
 
                 tool_versions.append(version_name)
                 avg_scores.append(metrics.get("avg_score", 0))
                 num_semesters.append(metrics.get("num_semesters", 0))
 
-            # Colors for tool versions
+            # Define colors for tool versions
             colors = [
-                (
-                    "lightgray"
-                    if v == "No Tool"
-                    else "lightblue" if v == "Jetpack v1" else "cornflowerblue"
+                self.get_tool_color(
+                    v.replace("Jetpack ", "") if "Jetpack" in v else None
                 )
                 for v in tool_versions
             ]
@@ -277,16 +201,8 @@ class CourseEvaluationVisualizer(BaseVisualizer):
             # Plot 1: Overall comparison by tool version
             bars1 = ax1.bar(tool_versions, avg_scores, color=colors)
 
-            # Add value labels on top of bars
-            for bar in bars1:
-                height = bar.get_height()
-                ax1.text(
-                    bar.get_x() + bar.get_width() / 2.0,
-                    height + 0.05,
-                    f"{height:.2f}",
-                    ha="center",
-                    va="bottom",
-                )
+            # Add value labels
+            self.add_value_labels(ax1, bars1, "{:.2f}")
 
             # Add semester count annotation
             for i, count in enumerate(num_semesters):
@@ -305,70 +221,89 @@ class CourseEvaluationVisualizer(BaseVisualizer):
             ax1.set_ylim(0, max(avg_scores) * 1.2)  # Add some space at the top
 
             # Plot 2: Seasonal comparison by tool version
-            tool_versions_seasonal = []
-            fall_avgs = []
-            spring_avgs = []
+            if seasonal_impact:
+                tool_versions_seasonal = []
+                fall_avgs = []
+                spring_avgs = []
 
-            for version, metrics in sorted(
-                seasonal_impact.items(), key=lambda item: (item[0] is not None, item[0])
-            ):
-                # Format the version name
-                version_name = "No Tool" if version == "none" else f"Jetpack {version}"
+                for version, metrics in sorted(
+                    seasonal_impact.items(),
+                    key=lambda item: (item[0] is not None, item[0]),
+                ):
+                    # Format the version name
+                    version_name = (
+                        "No Tool" if version == "none" else f"Jetpack {version}"
+                    )
 
-                fall_avg = metrics.get("fall_avg")
-                spring_avg = metrics.get("spring_avg")
+                    fall_avg = metrics.get("fall_avg")
+                    spring_avg = metrics.get("spring_avg")
 
-                if fall_avg is not None or spring_avg is not None:
-                    tool_versions_seasonal.append(version_name)
-                    fall_avgs.append(fall_avg if fall_avg is not None else 0)
-                    spring_avgs.append(spring_avg if spring_avg is not None else 0)
+                    if fall_avg is not None or spring_avg is not None:
+                        tool_versions_seasonal.append(version_name)
+                        fall_avgs.append(fall_avg if fall_avg is not None else 0)
+                        spring_avgs.append(spring_avg if spring_avg is not None else 0)
 
-            # Set width for grouped bars
-            if tool_versions_seasonal:
-                x = np.arange(len(tool_versions_seasonal))
-                width = 0.35
+                # Set width for grouped bars
+                if tool_versions_seasonal:
+                    x = np.arange(len(tool_versions_seasonal))
+                    width = 0.35
 
-                # Create grouped bar chart
-                ax2.bar(x - width / 2, fall_avgs, width, label="Fall", color="orange")
-                ax2.bar(
-                    x + width / 2, spring_avgs, width, label="Spring", color="green"
-                )
+                    # Create grouped bar chart
+                    ax2.bar(
+                        x - width / 2, fall_avgs, width, label="Fall", color="orange"
+                    )
+                    ax2.bar(
+                        x + width / 2, spring_avgs, width, label="Spring", color="green"
+                    )
 
-                # Add labels and title
-                ax2.set_xlabel("Tool Version", fontsize=12)
-                ax2.set_ylabel("Average Score", fontsize=12)
-                ax2.set_title("Fall vs Spring Comparison by Tool Version", fontsize=16)
-                ax2.set_xticks(x)
-                ax2.set_xticklabels(tool_versions_seasonal)
-                ax2.legend()
+                    # Add labels and title
+                    ax2.set_xlabel("Tool Version", fontsize=12)
+                    ax2.set_ylabel("Average Score", fontsize=12)
+                    ax2.set_title(
+                        "Fall vs Spring Comparison by Tool Version", fontsize=16
+                    )
+                    ax2.set_xticks(x)
+                    ax2.set_xticklabels(tool_versions_seasonal)
+                    ax2.legend()
 
-                # Add annotations for missing data
-                for i, (fall, spring) in enumerate(zip(fall_avgs, spring_avgs)):
-                    if fall == 0:
-                        ax2.text(
-                            i - width / 2,
-                            0.5,
-                            "No data",
-                            ha="center",
-                            va="bottom",
-                            color="gray",
-                            fontsize=10,
-                        )
-                    if spring == 0:
-                        ax2.text(
-                            i + width / 2,
-                            0.5,
-                            "No data",
-                            ha="center",
-                            va="bottom",
-                            color="gray",
-                            fontsize=10,
-                        )
+                    # Add annotations for missing data
+                    for i, (fall, spring) in enumerate(zip(fall_avgs, spring_avgs)):
+                        if fall == 0:
+                            ax2.text(
+                                i - width / 2,
+                                0.5,
+                                "No data",
+                                ha="center",
+                                va="bottom",
+                                color="gray",
+                                fontsize=10,
+                            )
+                        if spring == 0:
+                            ax2.text(
+                                i + width / 2,
+                                0.5,
+                                "No data",
+                                ha="center",
+                                va="bottom",
+                                color="gray",
+                                fontsize=10,
+                            )
+                else:
+                    ax2.text(
+                        0.5,
+                        0.5,
+                        "Insufficient data for seasonal comparison",
+                        ha="center",
+                        va="center",
+                        fontsize=14,
+                        transform=ax2.transAxes,
+                    )
+                    ax2.axis("off")
             else:
                 ax2.text(
                     0.5,
                     0.5,
-                    "Insufficient data for seasonal comparison",
+                    "No seasonal data available",
                     ha="center",
                     va="center",
                     fontsize=14,
@@ -379,24 +314,22 @@ class CourseEvaluationVisualizer(BaseVisualizer):
             plt.tight_layout()
 
             # Save figure
-            output_path = os.path.join(self.vis_dir, f"tool_impact.{self.format}")
-            plt.savefig(output_path, dpi=300, bbox_inches="tight")
-            plt.close()
-
-            return output_path
+            return self.save_figure(filename)
 
         except Exception as e:
             logger.error(f"Error creating tool impact visualization: {str(e)}")
+            plt.close("all")  # Close any open figures
             return None
 
     def _visualize_section_performance(
-        self, section_data: Dict[str, Any]
+        self, section_data: Dict[str, Any], filename: str
     ) -> Optional[str]:
         """
         Create visualization of section performance.
 
         Args:
             section_data: Section performance data
+            filename: Base filename for saving
 
         Returns:
             Path to the visualization file
@@ -412,12 +345,8 @@ class CourseEvaluationVisualizer(BaseVisualizer):
                 )
                 return None
 
-            # # Sort semesters chronologically
-            # sorted_semesters = sorted(semester_data.keys())
-
-            # TODO Break this out into a helper fuction
             # Sort semesters by year and then by order (Spring then Fall)
-            # First, create a list of tuples (code, year, order) for sorting
+            # Create a list of tuples (code, year, order) for sorting
             semester_sort_data = []
             for semester_code, data in semester_data.items():
                 year = data.get("year", 0)  # Extract year if available
@@ -456,85 +385,57 @@ class CourseEvaluationVisualizer(BaseVisualizer):
                 semester_data[s].get("display_name", s) for s in sorted_semesters
             ]
 
-            # Calculate overall min/max for consistent colormap
-            valid_scores = section_scores[~np.isnan(section_scores)]
-            vmin = np.min(valid_scores) if len(valid_scores) > 0 else 0
-            vmax = np.max(valid_scores) if len(valid_scores) > 0 else 7
-
-            # Create figure
-            plt.figure(figsize=(14, 10))
-
             # Create heatmap
-            im = plt.imshow(
-                section_scores, cmap="viridis", aspect="auto", vmin=vmin, vmax=vmax
+            result = self.create_heatmap(
+                data=section_scores,
+                row_labels=sections,
+                col_labels=x_labels,
+                filename=filename,
+                title="Section Performance by Semester",
+                cmap="viridis",
+                add_values=True,
             )
 
-            # Add colorbar
-            cbar = plt.colorbar(im)
-            cbar.set_label("Average Score", fontsize=12)
+            # Add tool version annotations
+            if result:
+                for i, semester in enumerate(sorted_semesters):
+                    tool_version = semester_data[semester].get("tool_version")
+                    if tool_version is not None:
+                        tool_label = f"({tool_version})"
+                    elif tool_version is None:
+                        tool_label = "(no tool)"
+                    else:
+                        tool_label = ""
 
-            # Add labels
-            plt.xticks(np.arange(len(x_labels)), x_labels, rotation=45, ha="right")
-            plt.yticks(np.arange(len(sections)), sections)
-
-            # Add tool version annotations if available
-            for i, semester in enumerate(sorted_semesters):
-                tool_version = semester_data[semester].get("tool_version")
-                if tool_version is not None:
-                    tool_label = f"({tool_version})"
-                elif tool_version is None:
-                    tool_label = "(no tool)"
-                else:
-                    tool_label = ""
-
-                if tool_label:
-                    plt.annotate(
-                        tool_label,
-                        (i, -0.5),
-                        xytext=(0, -15),
-                        textcoords="offset points",
-                        ha="center",
-                        fontsize=9,
-                    )
-
-            # Add title
-            plt.title("Section Performance by Semester", fontsize=16)
-
-            # Add values in each cell
-            for i in range(len(sections)):
-                for j in range(len(sorted_semesters)):
-                    value = section_scores[i, j]
-                    if not np.isnan(value):
-                        plt.text(
-                            j,
-                            i,
-                            f"{value:.2f}",
+                    if tool_label:
+                        plt.annotate(
+                            tool_label,
+                            (i, -0.5),
+                            xytext=(0, -15),
+                            textcoords="offset points",
                             ha="center",
-                            va="center",
-                            color="white" if value < (vmin + vmax) / 2 else "black",
+                            fontsize=9,
                         )
 
-            plt.tight_layout()
+                plt.tight_layout()
+                result = self.save_figure(filename)  # Re-save with annotations
 
-            # Save figure
-            output_path = os.path.join(
-                self.vis_dir, f"section_performance.{self.format}"
-            )
-            plt.savefig(output_path, dpi=300, bbox_inches="tight")
-            plt.close()
-
-            return output_path
+            return result
 
         except Exception as e:
             logger.error(f"Error creating section performance visualization: {str(e)}")
+            plt.close("all")  # Close any open figures
             return None
 
-    def _visualize_key_questions(self, question_data: Dict[str, Any]) -> Optional[str]:
+    def _visualize_key_questions(
+        self, question_data: Dict[str, Any], filename: str
+    ) -> Optional[str]:
         """
         Create visualization of key question responses.
 
         Args:
             question_data: Key question analysis data
+            filename: Base filename for saving
 
         Returns:
             Path to the visualization file
@@ -591,28 +492,13 @@ class CourseEvaluationVisualizer(BaseVisualizer):
                 ]
 
                 # Define colors based on tool version
-                colors = [
-                    (
-                        "lightgray"
-                        if v is None
-                        else "lightblue" if v == "v1" else "cornflowerblue"
-                    )
-                    for v in tool_versions
-                ]
+                colors = [self.get_tool_color(v) for v in tool_versions]
 
                 # Create bar chart
                 bars = axes[i].bar(x_labels, scores, color=colors)
 
                 # Add value labels on top of bars
-                for bar in bars:
-                    height = bar.get_height()
-                    axes[i].text(
-                        bar.get_x() + bar.get_width() / 2.0,
-                        height + 0.05,
-                        f"{height:.2f}",
-                        ha="center",
-                        va="bottom",
-                    )
+                self.add_value_labels(axes[i], bars, "{:.2f}")
 
                 # Add tool version annotations
                 for j, version in enumerate(tool_versions):
@@ -638,22 +524,22 @@ class CourseEvaluationVisualizer(BaseVisualizer):
             plt.tight_layout()
 
             # Save figure
-            output_path = os.path.join(self.vis_dir, f"key_questions.{self.format}")
-            plt.savefig(output_path, dpi=300, bbox_inches="tight")
-            plt.close()
-
-            return output_path
+            return self.save_figure(filename)
 
         except Exception as e:
             logger.error(f"Error creating key questions visualization: {str(e)}")
+            plt.close("all")  # Close any open figures
             return None
 
-    def _visualize_rating_trends(self, trend_data: Dict[str, Any]) -> Optional[str]:
+    def _visualize_rating_trends(
+        self, trend_data: Dict[str, Any], filename: str
+    ) -> Optional[str]:
         """
         Create visualization of rating trends over time.
 
         Args:
             trend_data: Rating trend data
+            filename: Base filename for saving
 
         Returns:
             Path to the visualization file
@@ -704,9 +590,7 @@ class CourseEvaluationVisualizer(BaseVisualizer):
                 )
 
             # Highlight tool version changes
-            for i in range(1, len(tool_versions)):
-                if tool_versions[i] != tool_versions[i - 1]:
-                    ax1.axvline(x=i - 0.5, color="red", linestyle="--", alpha=0.5)
+            self.highlight_tool_changes(ax1, tool_versions)
 
             ax1.set_title("Overall Evaluation Score Trend", fontsize=16)
             ax1.set_ylabel("Average Score", fontsize=12)
@@ -769,17 +653,8 @@ class CourseEvaluationVisualizer(BaseVisualizer):
                     change_labels, change_values, color=change_colors, alpha=0.7
                 )
 
-                # Add value labels on top of bars
-                for bar in bars:
-                    height = bar.get_height()
-                    y_pos = height + 0.05 if height > 0 else height - 0.15
-                    ax2.text(
-                        bar.get_x() + bar.get_width() / 2.0,
-                        y_pos,
-                        f"{height:.2f}",
-                        ha="center",
-                        va="bottom",
-                    )
+                # Add value labels
+                self.add_value_labels(ax2, bars, "{:.2f}")
 
                 ax2.set_title("Semester-to-Semester Changes", fontsize=16)
                 ax2.set_ylabel("Score Change", fontsize=12)
@@ -830,22 +705,283 @@ class CourseEvaluationVisualizer(BaseVisualizer):
             plt.tight_layout()
 
             # Save figure
-            output_path = os.path.join(self.vis_dir, f"rating_trends.{self.format}")
-            plt.savefig(output_path, dpi=300, bbox_inches="tight")
-            plt.close()
-
-            return output_path
+            return self.save_figure(filename)
 
         except Exception as e:
             logger.error(f"Error creating rating trends visualization: {str(e)}")
+            plt.close("all")  # Close any open figures
             return None
 
-    def _visualize_overall_rating(self, rating_data: Dict[str, Any]) -> Optional[str]:
+    def _visualize_time_spent(
+        self, time_data: Dict[str, Any], filename: str
+    ) -> Optional[str]:
+        """
+        Create visualization of time spent on the course.
+
+        Args:
+            time_data: Time spent analysis data
+            filename: Base filename for saving
+
+        Returns:
+            Path to the visualization file
+        """
+        try:
+            # Check if we have data on total time spent
+            by_semester = time_data.get("by_semester", {})
+
+            if not by_semester:
+                logger.warning("No semester data for time spent visualization")
+                return None
+
+            # Create figure with multiple subplots
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 14))
+
+            # Sort semesters chronologically
+            sorted_semesters = sorted(by_semester.keys())
+            semester_data = [by_semester[s] for s in sorted_semesters]
+
+            # Extract data for visualization
+            semester_labels = [data.get("display_name", "") for data in semester_data]
+            classroom_times = [data.get("classroom_time", 0) for data in semester_data]
+            outside_times = [data.get("outside_time", 0) for data in semester_data]
+            total_times = [data.get("total_time", 0) for data in semester_data]
+            tool_versions = [data.get("tool_version") for data in semester_data]
+            terms = [data.get("term", "") for data in semester_data]
+
+            # Define colors based on term
+            term_colors = ["orange" if term == "fall" else "green" for term in terms]
+
+            # Plot 1: Stacked bar chart showing classroom vs outside time
+            bar_width = 0.7
+
+            # Create bars for classroom time
+            bars1 = ax1.bar(
+                semester_labels,
+                classroom_times,
+                bar_width,
+                label="Classroom Time",
+                color="lightblue",
+            )
+
+            # Create bars for outside time, stacked on top of classroom time
+            bars2 = ax1.bar(
+                semester_labels,
+                outside_times,
+                bar_width,
+                bottom=classroom_times,
+                label="Outside Classroom",
+                color="coral",
+            )
+
+            # Add value labels for total time
+            for i, (c_time, o_time) in enumerate(zip(classroom_times, outside_times)):
+                total = c_time + o_time
+                ax1.text(
+                    i,
+                    total + 0.3,
+                    f"Total: {total:.1f}h",
+                    ha="center",
+                    va="bottom",
+                    fontweight="bold",
+                )
+
+                # Add breakdown
+                ax1.text(
+                    i,
+                    c_time / 2,
+                    f"{c_time:.1f}h",
+                    ha="center",
+                    va="center",
+                    color="black",
+                    fontsize=9,
+                    fontweight="bold",
+                )
+                ax1.text(
+                    i,
+                    c_time + o_time / 2,
+                    f"{o_time:.1f}h",
+                    ha="center",
+                    va="center",
+                    color="black",
+                    fontsize=9,
+                    fontweight="bold",
+                )
+
+            # Add tool version annotations
+            for i, version in enumerate(tool_versions):
+                tool_label = "No Tool" if version is None else f"Jetpack {version}"
+                ax1.annotate(
+                    tool_label,
+                    (i, 0.3),
+                    xytext=(0, -20),
+                    textcoords="offset points",
+                    ha="center",
+                    fontsize=10,
+                )
+
+            # Highlight tool version changes
+            self.highlight_tool_changes(ax1, tool_versions)
+
+            # Add trend line for total time
+            if len(semester_labels) >= 2:
+                x = np.arange(len(semester_labels))
+
+                # Calculate trend line
+                z = np.polyfit(x, total_times, 1)
+                p = np.poly1d(z)
+                trend_line = p(x)
+
+                ax1.plot(x, trend_line, "r--", label=f"Trend (slope: {z[0]:.2f})")
+
+                # Add trend analysis annotation
+                if z[0] > 0.2:
+                    trend_text = f"↗ Increasing: +{z[0]:.2f} hours/semester"
+                    trend_color = (
+                        "red"  # Red because increasing time is generally negative
+                    )
+                elif z[0] < -0.2:
+                    trend_text = f"↘ Decreasing: {z[0]:.2f} hours/semester"
+                    trend_color = (
+                        "green"  # Green because decreasing time is generally positive
+                    )
+                else:
+                    trend_text = f"→ Stable: {z[0]:.2f} hours/semester"
+                    trend_color = "black"
+
+                ax1.annotate(
+                    trend_text,
+                    xy=(0.02, 0.95),
+                    xycoords="axes fraction",
+                    bbox=dict(
+                        boxstyle="round,pad=0.3", fc="white", ec=trend_color, alpha=0.8
+                    ),
+                    ha="left",
+                    fontsize=11,
+                    color=trend_color,
+                )
+
+            ax1.set_title("Time Spent on Course by Semester", fontsize=16)
+            ax1.set_ylabel("Hours per Week", fontsize=12)
+            ax1.set_ylim(0, max(total_times) * 1.2 if total_times else 10)
+            ax1.legend(loc="upper right")
+
+            # Add text explanation
+            ax1.text(
+                0.5,
+                -0.15,
+                "Stacked bars show division between classroom time (bottom) and outside classroom time (top).",
+                transform=ax1.transAxes,
+                ha="center",
+                fontsize=10,
+                style="italic",
+            )
+
+            # Plot 2: Tool version comparison
+            avg_by_tool = time_data.get("avg_by_tool_version", {})
+
+            if avg_by_tool:
+                # Extract data
+                tool_labels = []
+                avg_times = []
+                sample_sizes = []
+
+                for version, metrics in sorted(
+                    avg_by_tool.items(), key=lambda item: (item[0] is not None, item[0])
+                ):
+                    # Format version name
+                    version_name = (
+                        "No Tool" if version == "none" else f"Jetpack {version}"
+                    )
+                    tool_labels.append(version_name)
+                    avg_times.append(metrics.get("avg_time", 0))
+                    sample_sizes.append(metrics.get("num_data_points", 0))
+
+                # Define colors
+                colors = [
+                    self.get_tool_color(
+                        v.replace("Jetpack ", "") if "Jetpack" in v else None
+                    )
+                    for v in tool_labels
+                ]
+
+                # Create bar chart
+                bars2 = ax2.bar(tool_labels, avg_times, color=colors, width=0.6)
+
+                # Add value labels
+                self.add_value_labels(ax2, bars2, "{:.1f}h")
+
+                # Add sample size annotations
+                for i, count in enumerate(sample_sizes):
+                    ax2.text(
+                        i,
+                        avg_times[i] * 0.15,
+                        f"n={count}",
+                        ha="center",
+                        va="bottom",
+                        color="black",
+                        fontsize=9,
+                    )
+
+                ax2.set_title("Average Time Spent by Tool Version", fontsize=16)
+                ax2.set_ylabel("Hours per Week", fontsize=12)
+                ax2.set_ylim(0, max(avg_times) * 1.2 if avg_times else 10)
+
+                # Add percentage change annotations between versions
+                for i in range(1, len(tool_labels)):
+                    prev_time = avg_times[i - 1]
+                    curr_time = avg_times[i]
+
+                    if prev_time > 0:
+                        pct_change = (curr_time - prev_time) / prev_time * 100
+                        change_text = (
+                            f"{pct_change:.1f}% {'↑' if pct_change > 0 else '↓'}"
+                        )
+
+                        # Color based on direction - decreasing time is positive
+                        color = "green" if pct_change < 0 else "red"
+
+                        x_pos = (i - 1 + i) / 2
+                        y_pos = max(prev_time, curr_time) * 1.1
+
+                        ax2.annotate(
+                            change_text,
+                            (x_pos, y_pos),
+                            ha="center",
+                            fontsize=11,
+                            color=color,
+                            weight="bold",
+                        )
+            else:
+                ax2.text(
+                    0.5,
+                    0.5,
+                    "Insufficient data for tool version comparison",
+                    ha="center",
+                    va="center",
+                    fontsize=14,
+                    transform=ax2.transAxes,
+                )
+                ax2.axis("off")
+
+            plt.tight_layout()
+
+            # Save figure
+            return self.save_figure(filename)
+
+        except Exception as e:
+            logger.error(f"Error creating time spent visualization: {str(e)}")
+            plt.close("all")  # Close any open figures
+            return None
+
+    def _visualize_overall_rating(
+        self, rating_data: Dict[str, Any], filename: str
+    ) -> Optional[str]:
         """
         Create visualization of overall rating analysis.
 
         Args:
             rating_data: Overall rating analysis data
+            filename: Base filename for saving
 
         Returns:
             Path to the visualization file
@@ -921,7 +1057,7 @@ class CourseEvaluationVisualizer(BaseVisualizer):
             for i, (rating, color) in enumerate(zip(rating_values, term_colors)):
                 ax1.scatter(i, rating, color=color, s=100, zorder=5)
 
-            # Add tool version annotations and highlight changes
+            # Add tool version annotations
             for i, version in enumerate(tool_versions):
                 tool_label = "No Tool" if version is None else f"Jetpack {version}"
                 ax1.annotate(
@@ -933,10 +1069,8 @@ class CourseEvaluationVisualizer(BaseVisualizer):
                     fontsize=9,
                 )
 
-            # Highlight tool version changes with vertical lines
-            for i in range(1, len(tool_versions)):
-                if tool_versions[i] != tool_versions[i - 1]:
-                    ax1.axvline(x=i - 0.5, color="red", linestyle="--", alpha=0.5)
+            # Highlight tool version changes
+            self.highlight_tool_changes(ax1, tool_versions)
 
             # Add trend line if available
             if "trend" in rating_data:
@@ -1018,10 +1152,8 @@ class CourseEvaluationVisualizer(BaseVisualizer):
 
                 # Define colors
                 bar_colors = [
-                    (
-                        "lightgray"
-                        if v == "No Tool"
-                        else "lightblue" if v == "Jetpack v1" else "cornflowerblue"
+                    self.get_tool_color(
+                        v.replace("Jetpack ", "") if "Jetpack" in v else None
                     )
                     for v in tool_labels
                 ]
@@ -1030,15 +1162,7 @@ class CourseEvaluationVisualizer(BaseVisualizer):
                 bars2 = ax2.bar(tool_labels, avg_ratings, color=bar_colors)
 
                 # Add value labels
-                for bar in bars2:
-                    height = bar.get_height()
-                    ax2.text(
-                        bar.get_x() + bar.get_width() / 2.0,
-                        height + 0.01,
-                        f"{height:.2f}",
-                        ha="center",
-                        va="bottom",
-                    )
+                self.add_value_labels(ax2, bars2, "{:.2f}")
 
                 # Add sample size annotations
                 for i, count in enumerate(sample_sizes):
@@ -1097,24 +1221,22 @@ class CourseEvaluationVisualizer(BaseVisualizer):
             plt.tight_layout()
 
             # Save figure
-            output_path = os.path.join(self.vis_dir, f"overall_rating.{self.format}")
-            plt.savefig(output_path, dpi=300, bbox_inches="tight")
-            plt.close()
-
-            return output_path
+            return self.save_figure(filename)
 
         except Exception as e:
             logger.error(f"Error creating overall rating visualization: {str(e)}")
+            plt.close("all")  # Close any open figures
             return None
 
     def _visualize_rating_time_correlation(
-        self, correlation_data: Dict[str, Any]
+        self, correlation_data: Dict[str, Any], filename: str
     ) -> Optional[str]:
         """
         Create visualization of correlation between time spent and overall rating.
 
         Args:
             correlation_data: Correlation analysis data
+            filename: Base filename for saving
 
         Returns:
             Path to the visualization file
@@ -1133,17 +1255,15 @@ class CourseEvaluationVisualizer(BaseVisualizer):
             tool_versions = [item.get("tool_version") for item in paired_data]
 
             # Create figure
-            plt.figure(figsize=(12, 10))
+            fig = self.setup_figure(
+                figsize=(12, 10),
+                title="Correlation: Time Spent vs. Overall Rating",
+                xlabel="Average Hours per Week",
+                ylabel="Overall Rating",
+            )
 
             # Define colors based on tool version
-            colors = [
-                (
-                    "lightgray"
-                    if v is None
-                    else "lightblue" if v == "v1" else "cornflowerblue"
-                )
-                for v in tool_versions
-            ]
+            colors = [self.get_tool_color(v) for v in tool_versions]
 
             # Create scatter plot
             scatter = plt.scatter(time_spent, ratings, c=colors, s=100, alpha=0.7)
@@ -1215,213 +1335,12 @@ class CourseEvaluationVisualizer(BaseVisualizer):
             ]
             plt.legend(handles=handles, loc="lower right")
 
-            # Add title and labels
-            plt.title("Correlation: Time Spent vs. Overall Rating", fontsize=16)
-            plt.xlabel("Average Hours per Week", fontsize=12)
-            plt.ylabel("Overall Rating", fontsize=12)
             plt.grid(True, linestyle="--", alpha=0.5)
 
             # Save figure
-            output_path = os.path.join(
-                self.vis_dir, f"rating_time_correlation.{self.format}"
-            )
-            plt.savefig(output_path, dpi=300, bbox_inches="tight")
-            plt.close()
-
-            return output_path
+            return self.save_figure(filename)
 
         except Exception as e:
             logger.error(f"Error creating correlation visualization: {str(e)}")
-            return None
-
-    def _visualize_time_spent(self, time_data: Dict[str, Any]) -> Optional[str]:
-        """
-        Create visualization of time spent on the course.
-        
-        Args:
-            time_data: Time spent analysis data
-            
-        Returns:
-            Path to the visualization file
-        """
-        try:
-            # Check if we have data on total time spent
-            by_semester = time_data.get('by_semester', {})
-            
-            if not by_semester:
-                logger.warning("No semester data for time spent visualization")
-                return None
-            
-            # Create figure with multiple subplots
-            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 14))
-            
-            # Sort semesters chronologically
-            sorted_semesters = sorted(by_semester.keys())
-            semester_data = [by_semester[s] for s in sorted_semesters]
-            
-            # Extract data for visualization
-            semester_labels = [data.get('display_name', '') for data in semester_data]
-            classroom_times = [data.get('classroom_time', 0) for data in semester_data]
-            outside_times = [data.get('outside_time', 0) for data in semester_data]
-            total_times = [data.get('total_time', 0) for data in semester_data]
-            tool_versions = [data.get('tool_version') for data in semester_data]
-            terms = [data.get('term', '') for data in semester_data]
-            
-            # Define colors based on term
-            term_colors = ['orange' if term == 'fall' else 'green' for term in terms]
-            
-            # Plot 1: Stacked bar chart showing classroom vs outside time
-            bar_width = 0.7
-            
-            # Create bars for classroom time
-            bars1 = ax1.bar(semester_labels, classroom_times, bar_width, 
-                        label='Classroom Time', color='lightblue')
-            
-            # Create bars for outside time, stacked on top of classroom time
-            bars2 = ax1.bar(semester_labels, outside_times, bar_width, 
-                        bottom=classroom_times, 
-                        label='Outside Classroom', color='coral')
-            
-            # Add value labels for total time
-            for i, (c_time, o_time) in enumerate(zip(classroom_times, outside_times)):
-                total = c_time + o_time
-                ax1.text(i, total + 0.3, f'Total: {total:.1f}h', 
-                    ha='center', va='bottom', fontweight='bold')
-                
-                # Add breakdown
-                ax1.text(i, c_time / 2, f'{c_time:.1f}h', ha='center', va='center', 
-                    color='black', fontsize=9, fontweight='bold')
-                ax1.text(i, c_time + o_time / 2, f'{o_time:.1f}h', ha='center', va='center', 
-                    color='black', fontsize=9, fontweight='bold')
-            
-            # Add tool version annotations
-            for i, version in enumerate(tool_versions):
-                tool_label = 'No Tool' if version == 'none' else f'Jetpack {version}'
-                ax1.annotate(tool_label,
-                        (i, 0.3),
-                        xytext=(0, -20),
-                        textcoords='offset points',
-                        ha='center',
-                        fontsize=10)
-            
-            # Highlight tool version changes
-            for i in range(1, len(tool_versions)):
-                if tool_versions[i] != tool_versions[i-1]:
-                    ax1.axvline(x=i-0.5, color='red', linestyle='--', alpha=0.5)
-            
-            # Add trend line for total time
-            if len(semester_labels) >= 2:
-                x = np.arange(len(semester_labels))
-                z = np.polyfit(x, total_times, 1)
-                p = np.poly1d(z)
-                trend_line = ax1.plot(x, p(x), 'r--', label=f'Trend (slope: {z[0]:.2f})')
-                
-                # Add trend analysis annotation
-                if z[0] > 0.2:
-                    trend_text = f"↗ Increasing: +{z[0]:.2f} hours/semester"
-                    trend_color = 'red'  # Red because increasing time is generally negative
-                elif z[0] < -0.2:
-                    trend_text = f"↘ Decreasing: {z[0]:.2f} hours/semester"
-                    trend_color = 'green'  # Green because decreasing time is generally positive
-                else:
-                    trend_text = f"→ Stable: {z[0]:.2f} hours/semester"
-                    trend_color = 'black'
-                    
-                ax1.annotate(trend_text,
-                            xy=(0.02, 0.95),
-                            xycoords='axes fraction',
-                            bbox=dict(boxstyle="round,pad=0.3", fc="white", ec=trend_color, alpha=0.8),
-                            ha='left',
-                            fontsize=11,
-                            color=trend_color)
-            
-            ax1.set_title('Time Spent on Course by Semester', fontsize=16)
-            ax1.set_ylabel('Hours per Week', fontsize=12)
-            ax1.set_ylim(0, max(total_times) * 1.2)
-            ax1.legend(loc='upper right')
-            
-            # Add text explanation
-            ax1.text(0.5, -0.15, 
-                "Stacked bars show division between classroom time (bottom) and outside classroom time (top).",
-                transform=ax1.transAxes, ha='center', fontsize=10, style='italic')
-            
-            # Plot 2: Tool version comparison
-            avg_by_tool = time_data.get('avg_by_tool_version', {})
-            
-            if avg_by_tool:
-                # Extract data
-                tool_labels = []
-                avg_times = []
-                sample_sizes = []
-                
-                for version, metrics in sorted(
-                    avg_by_tool.items(), key=lambda item: (item[0] is not None, item[0])
-                ):
-                    # Format version name
-                    version_name = 'No Tool' if version == 'none' else f'Jetpack {version}'
-                    tool_labels.append(version_name)
-                    avg_times.append(metrics.get('avg_time', 0))
-                    sample_sizes.append(metrics.get('num_data_points', 0))
-                
-                # Define colors
-                bar_colors = ['lightgray' if v == 'No Tool' else 'lightblue' if v == 'Jetpack v1' else 'cornflowerblue' 
-                            for v in tool_labels]
-                
-                # Create bar chart
-                bars2 = ax2.bar(tool_labels, avg_times, color=bar_colors, width=0.6)
-                
-                # Add value labels
-                for bar in bars2:
-                    height = bar.get_height()
-                    ax2.text(bar.get_x() + bar.get_width()/2., height + 0.3,
-                        f'{height:.1f}h',
-                        ha='center', va='bottom')
-                        
-                # Add sample size annotations
-                for i, count in enumerate(sample_sizes):
-                    ax2.text(i, avg_times[i] * 0.15, f'n={count}',
-                        ha='center', va='bottom',
-                        color='black', fontsize=9)
-                
-                ax2.set_title('Average Time Spent by Tool Version', fontsize=16)
-                ax2.set_ylabel('Hours per Week', fontsize=12)
-                ax2.set_ylim(0, max(avg_times) * 1.2)
-                
-                # Add percentage change annotations between versions
-                for i in range(1, len(tool_labels)):
-                    prev_time = avg_times[i-1]
-                    curr_time = avg_times[i]
-                    
-                    if prev_time > 0:
-                        pct_change = (curr_time - prev_time) / prev_time * 100
-                        change_text = f"{pct_change:.1f}% {'↑' if pct_change > 0 else '↓'}"
-                        
-                        # Color based on direction - decreasing time is positive
-                        color = 'green' if pct_change < 0 else 'red'
-                        
-                        x_pos = (i-1 + i) / 2
-                        y_pos = max(prev_time, curr_time) * 1.1
-                        
-                        ax2.annotate(change_text,
-                                (x_pos, y_pos),
-                                ha='center',
-                                fontsize=11,
-                                color=color,
-                                weight='bold')
-            else:
-                ax2.text(0.5, 0.5, "Insufficient data for tool version comparison",
-                    ha='center', va='center', fontsize=14, transform=ax2.transAxes)
-                ax2.axis('off')
-            
-            plt.tight_layout()
-            
-            # Save figure
-            output_path = os.path.join(self.vis_dir, f"time_spent.{self.format}")
-            plt.savefig(output_path, dpi=300, bbox_inches='tight')
-            plt.close()
-            
-            return output_path
-        
-        except Exception as e:
-            logger.error(f"Error creating time spent visualization: {str(e)}")
+            plt.close("all")  # Close any open figures
             return None

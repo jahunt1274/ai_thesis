@@ -1,12 +1,11 @@
+
 """
-Visualization modules for the AI thesis analysis.
+Visualization modules for data analysis.
 """
 
 from src.visualizers.base_visualizer import BaseVisualizer
-from src.visualizers.demographic_visualizer import DemographicVisualizer
-from src.visualizers.usage_visualizer import UsageVisualizer
-from src.visualizers.engagement_visualizer import EngagementVisualizer
-from src.visualizers.categorization_visualizer import CategorizationVisualizer
-from src.visualizers.cohort_visualizer import CohortVisualizer
-from src.visualizers.course_eval_visualizer import CourseEvaluationVisualizer
+from src.visualizers.user_visualizer import UserVisualizer
+from src.visualizers.activity_visualizer import ActivityVisualizer
+from src.visualizers.idea_visualizer import IdeaVisualizer
+from src.visualizers.course_evaluation_visualizer import CourseEvaluationVisualizer
 from src.visualizers.visualization_manager import VisualizationManager
