@@ -195,6 +195,7 @@ data_analysis/playground.py
 # Ignore legacy files
 data_analysis/src/processors/legacy
 data_analysis/src/visualizers/legacy
+data_analysis/legacy
 
 # Ignore all image and html files
 *.png
