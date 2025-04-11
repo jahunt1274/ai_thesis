@@ -49,6 +49,7 @@ class DataLoader:
 
     def load_and_process_all(
         self,
+        on_load_complete=None
     ) -> Tuple[List[UserDataType], List[IdeaDataType], List[StepDataType]]:
         """
         Load and process all data types.
@@ -69,6 +70,9 @@ class DataLoader:
         self.logger.info(
             f"Loaded {len(self.users)} users, {len(self.ideas)} ideas, {len(self.steps)} steps, {len(self.evaluations)} evaluations"
         )
+
+        if on_load_complete:
+            on_load_complete()
 
         return self.users, self.ideas, self.steps, self.evaluations
 

@@ -2,6 +2,7 @@
 User loader for the AI thesis analysis.
 """
 
+from collections import defaultdict
 from typing import Dict, List, Any, Optional
 
 from config import USER_DATA_FILE
@@ -45,7 +46,7 @@ class UserLoader(BaseLoader[UserDataType]):
                 if field not in user:
                     self.logger.warning(f"User missing required field: {field}")
                     return None
-
+            
             # Extract identifier
             user_id = self._extract_id(user.get("_id"))
 
@@ -78,6 +79,7 @@ class UserLoader(BaseLoader[UserDataType]):
                 "institution": self._extract_institution(user),
                 "student_affiliation": self._extract_student_affiliation(user),
                 "orbit_profile": self._extract_orbit_profile(user),
+                "views": self._extract_views(user),
             }
 
             return processed_user
@@ -166,3 +168,11 @@ class UserLoader(BaseLoader[UserDataType]):
             "persona": profile.get("persona", []),
             "has_image": profile.get("has_image", False),
         }
+
+    @staticmethod
+    def _extract_views(user: Dict[str, Any]) -> List[str]:
+        """Extract views from user record."""
+        if "views" not in user or not user["views"]:
+            return []
+
+        return [str(view) for view in user["views"] if view]

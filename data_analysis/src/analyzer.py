@@ -32,8 +32,7 @@ class Analyzer:
         output_dir: str = OUTPUT_DIR,
         eval_dir: Optional[str] = COURSE_EVAL_DIR,
         vis_output_dir: Optional[str] = VISUALIZATION_OUTPUT_DIR,
-        analyze_evaluations: bool = False,
-        analyze_cohorts: bool = False,
+        filter_params: Optional[Dict[str, Any]] = {},
     ):
         """
         Initialize the analyzer.
@@ -45,13 +44,9 @@ class Analyzer:
             categorized_ideas_file: Path to pre-categorized ideas file (optional)
             output_dir:             Directory to save outputs
             eval_dir:               Directory containing course evaluation files
-            analyze_evaluations:    Whether to run course evaluation analysis
-            analyze_cohorts:        Whether to run cohort analysis
         """
         self.output_dir = output_dir
         self.categorized_ideas_file = categorized_ideas_file
-        self.analyze_evaluations = analyze_evaluations
-        self.analyze_cohorts = analyze_cohorts
         self.eval_dir = eval_dir
         self.vis_output_dir = vis_output_dir
 
@@ -74,6 +69,8 @@ class Analyzer:
             "total_runtime": 0,
             "component_times": {},
         }
+        self.data_loaded = False
+        self.filter_params = filter_params
 
         # Initialize visualization_outputs attribute
         self.visualization_outputs = {}
@@ -101,6 +98,14 @@ class Analyzer:
         self.performance_metrics["component_times"]["data_loading"] = (
             time.time() - component_start
         )
+
+        if self.filter_params:
+            logger.info("Applying filters to data...")
+            component_start = time.time()
+            self.apply_filters(self.filter_params)
+            self.performance_metrics["component_times"]["filtering"] = (
+                time.time() - component_start
+            )
 
         # Prepare data dictionary for processors
         data = {
@@ -207,6 +212,14 @@ class Analyzer:
             self.performance_metrics["component_times"]["data_loading"] = (
                 time.time() - component_start
             )
+
+            if self.filter_params:
+                logger.info("Applying filters to data...")
+                component_start = time.time()
+                self.apply_filters(self.filter_params)
+                self.performance_metrics["component_times"]["filtering"] = (
+                    time.time() - component_start
+                )
 
             # Prepare data dictionary for processors
             data = {

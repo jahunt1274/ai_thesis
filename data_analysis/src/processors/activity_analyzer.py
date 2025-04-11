@@ -61,13 +61,24 @@ class ActivityAnalyzer(BaseAnalyzer):
         """
         self.logger.info("Performing activity analysis")
 
+        idea_generation = self._analyze_idea_generation()
+        engagement_levels = self._analyze_engagement_levels()
+        process_completion = self._analyze_process_completion()
+        dropout_points = self._analyze_dropout_points()
+        framework_usage = self._analyze_framework_usage()
+        timeline = self._analyze_usage_timeline()
+        view_action_correlation = self._analyze_view_action_correlation()
+        process_flow = self._analyze_process_flow(view_action_correlation)
+
         results = {
-            "idea_generation": self._analyze_idea_generation(),
-            "engagement_levels": self._analyze_engagement_levels(),
-            "process_completion": self._analyze_process_completion(),
-            "dropout_points": self._analyze_dropout_points(),
-            "framework_usage": self._analyze_framework_usage(),
-            "timeline": self._analyze_usage_timeline(),
+            "idea_generation": idea_generation,
+            "engagement_levels": engagement_levels,
+            "process_completion": process_completion,
+            "dropout_points": dropout_points,
+            "framework_usage": framework_usage,
+            "timeline": timeline,
+            "view_action_correlation": view_action_correlation,
+            "process_flow": process_flow,
         }
 
         return results
@@ -374,6 +385,513 @@ class ActivityAnalyzer(BaseAnalyzer):
 
         return {"daily_counts": daily_counts, "monthly_stats": monthly_stats}
 
+    def _analyze_view_action_correlation(self) -> Dict[str, Any]:
+        """
+        Analyze the temporal correlation between user views and actions (idea/step creation).
+
+        Returns:
+            Dictionary with view-to-action correlation analysis
+        """
+        self.logger.info("Analyzing view to action correlation")
+
+        # TODO Set values as constant/enum
+        # Initialize result structure
+        correlation_data = {
+            "view_to_idea_intervals": [],  # Time between view and idea creation
+            "view_to_step_intervals": [],  # Time between view and step creation
+            "user_patterns": {},  # Per-user patterns
+            "interval_distribution": {},  # Distribution of time intervals
+            "action_after_view_rate": 0,  # % of views followed by action within threshold
+            "immediate_action_threshold": 300,  # 5 minutes in seconds
+            # "immediate_action_threshold": 1800,  # 30 minutes in seconds
+            # "session_threshold": 1800,  # 30 minutes in seconds
+            "session_threshold": 3600,  # 1 hour in seconds
+            # "session_threshold": 43200,  # 12 hours in seconds
+            "sessions": [],  # List of session data
+            "users_analyzed": 0,  # Count of users with view data
+            "users_with_correlated_actions": 0,  # Users with views followed by actions
+        }
+
+        # Define time thresholds for analysis (in seconds)
+        immediate_threshold = correlation_data["immediate_action_threshold"]
+        session_threshold = correlation_data["session_threshold"]
+
+        # Track users with view data
+        users_with_views = 0
+        users_with_correlated_actions = 0
+
+        # Process each user
+        for user in self.users:
+            user_email = user.get("email")
+            if not user_email:
+                continue
+
+            # Get views for this user
+            views = user.get("views", [])
+            if not views:
+                continue
+
+            # Increment users with views count
+            users_with_views += 1
+
+            # Convert view timestamps to seconds and sort
+            view_timestamps = []
+            for view in views:
+                # Convert string eopch time to int
+                view = int(view)
+                # Handle different timestamp formats
+                if isinstance(view, (int, float)):
+                    # Check if timestamp needs to be divided by 1000 (milliseconds vs seconds)
+                    if view > 1e11:  # Large values likely represent milliseconds
+                        timestamp = view / 1000
+                    else:
+                        timestamp = view
+                    view_timestamps.append(timestamp)
+
+            # Skip if no valid timestamps
+            if not view_timestamps:
+                continue
+
+            # Sort timestamps chronologically
+            view_timestamps.sort()
+
+            # Get ideas for this user
+            user_ideas = self.ideas_by_owner.get(user_email, [])
+
+            # Process each idea created by this user
+            idea_timestamps = []
+            for idea in user_ideas:
+                created_date = idea.get("created_date")
+                idea_id = idea.get("id")
+
+                if not created_date or not idea_id:
+                    continue
+
+                # Convert ISO timestamp to seconds
+                try:
+                    if "T" in created_date:
+                        # Extract timestamp from ISO format
+                        from datetime import datetime
+
+                        dt = datetime.fromisoformat(created_date.replace("Z", "+00:00"))
+                        idea_timestamp = dt.timestamp()
+
+                        # Add to list with idea info
+                        idea_timestamps.append(
+                            {
+                                "timestamp": idea_timestamp,
+                                "idea_id": idea_id,
+                                "type": "idea",
+                            }
+                        )
+                except (ValueError, TypeError):
+                    continue
+
+            # Get steps for this user
+            user_steps = self.steps_by_owner.get(user_email, [])
+
+            # Process each step created by this user
+            step_timestamps = []
+            for step in user_steps:
+                created_at = step.get("created_at")
+                step_id = step.get("id")
+                idea_id = step.get("idea_id")
+
+                if not created_at or not step_id:
+                    continue
+
+                # Convert ISO timestamp to seconds
+                try:
+                    if "T" in created_at:
+                        # Extract timestamp from ISO format
+                        from datetime import datetime
+
+                        dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                        step_timestamp = dt.timestamp()
+
+                        # Add to list with step info
+                        step_timestamps.append(
+                            {
+                                "timestamp": step_timestamp,
+                                "step_id": step_id,
+                                "idea_id": idea_id,
+                                "type": "step",
+                            }
+                        )
+                except (ValueError, TypeError):
+                    continue
+
+            # Combine all actions (ideas and steps) and sort by timestamp
+            all_actions = idea_timestamps + step_timestamps
+            all_actions.sort(key=lambda x: x["timestamp"])
+
+            # Skip if no actions
+            if not all_actions:
+                continue
+
+            # Find the closest view before each action
+            has_correlated_actions = False
+
+            for action in all_actions:
+                action_time = action["timestamp"]
+                action_type = action["type"]
+
+                # Find the closest view before this action
+                closest_view_time = None
+                for view_time in view_timestamps:
+                    if view_time <= action_time:
+                        closest_view_time = view_time
+                    else:
+                        break
+
+                # Skip if no view before action
+                if closest_view_time is None:
+                    continue
+
+                # Calculate time interval (in seconds)
+                time_interval = action_time - closest_view_time
+
+                # Record the interval
+                if action_type == "idea":
+                    correlation_data["view_to_idea_intervals"].append(time_interval)
+                else:  # step
+                    correlation_data["view_to_step_intervals"].append(time_interval)
+
+                # Record if this was an immediate action
+                if time_interval <= immediate_threshold:
+                    has_correlated_actions = True
+
+            if has_correlated_actions:
+                users_with_correlated_actions += 1
+
+            # Session analysis for this user
+            sessions = self._identify_sessions(
+                view_timestamps, all_actions, session_threshold
+            )
+
+            # Store user-specific patterns
+            correlation_data["user_patterns"][user_email] = {
+                "view_count": len(view_timestamps),
+                "idea_count": len(idea_timestamps),
+                "step_count": len(step_timestamps),
+                "session_count": len(sessions),
+                "avg_actions_per_session": (
+                    sum(s["action_count"] for s in sessions) / len(sessions)
+                    if sessions
+                    else 0
+                ),
+            }
+
+            # Add sessions to global list
+            correlation_data["sessions"].extend(sessions)
+
+        # Calculate action after view rate
+        correlation_data["users_analyzed"] = users_with_views
+        correlation_data["users_with_correlated_actions"] = (
+            users_with_correlated_actions
+        )
+
+        if users_with_views > 0:
+            correlation_data["action_after_view_rate"] = (
+                users_with_correlated_actions / users_with_views
+            )
+
+        # Create interval distribution
+        intervals = (
+            correlation_data["view_to_idea_intervals"]
+            + correlation_data["view_to_step_intervals"]
+        )
+
+        if intervals:
+            # Define buckets for distribution (in seconds)
+            buckets = [
+                (0, 60, "< 1 min"),
+                (60, 300, "1-5 min"),
+                (300, 900, "5-15 min"),
+                (900, 1800, "15-30 min"),
+                (1800, 3600, "30-60 min"),
+                (3600, 7200, "1-2 hours"),
+                (7200, 86400, "2-24 hours"),
+                (86400, float("inf"), "> 24 hours"),
+            ]
+
+            # Count intervals in each bucket
+            interval_distribution = defaultdict(int)
+
+            for interval in intervals:
+                for start, end, label in buckets:
+                    if start <= interval < end:
+                        interval_distribution[label] += 1
+                        break
+
+            correlation_data["interval_distribution"] = dict(interval_distribution)
+
+            # Calculate basic statistics
+            correlation_data["interval_stats"] = {
+                "min": min(intervals),
+                "max": max(intervals),
+                "mean": sum(intervals) / len(intervals),
+                "median": sorted(intervals)[len(intervals) // 2],
+                "immediate_action_count": sum(
+                    1 for i in intervals if i <= immediate_threshold
+                ),
+                "immediate_action_percentage": (
+                    sum(1 for i in intervals if i <= immediate_threshold)
+                    / len(intervals)
+                    * 100
+                ),
+            }
+
+        # Calculate session statistics
+        if correlation_data["sessions"]:
+            sessions = correlation_data["sessions"]
+            correlation_data["session_stats"] = {
+                "total_sessions": len(sessions),
+                "avg_session_duration": sum(s["duration"] for s in sessions)
+                / len(sessions),
+                "avg_views_per_session": sum(s["view_count"] for s in sessions)
+                / len(sessions),
+                "avg_actions_per_session": sum(s["action_count"] for s in sessions)
+                / len(sessions),
+                "sessions_with_actions": sum(
+                    1 for s in sessions if s["action_count"] > 0
+                ),
+                "action_session_percentage": (
+                    sum(1 for s in sessions if s["action_count"] > 0)
+                    / len(sessions)
+                    * 100
+                ),
+            }
+
+        self.logger.info(
+            f"Completed view-action correlation analysis for {users_with_views} users"
+        )
+
+        return correlation_data
+
+    def _identify_sessions(
+        self,
+        view_timestamps: List[float],
+        actions: List[Dict[str, Any]],
+        session_threshold: float,
+    ) -> List[Dict[str, Any]]:
+        """
+        Identify user sessions based on view and action timestamps.
+
+        Args:
+            view_timestamps: Sorted list of view timestamps
+            actions: List of actions with timestamps
+            session_threshold: Time threshold for session boundary (in seconds)
+
+        Returns:
+            List of session data dictionaries
+        """
+        if not view_timestamps:
+            return []
+
+        # Combine views and actions into a single timeline
+        timeline = []
+
+        # Add views to timeline
+        for timestamp in view_timestamps:
+            timeline.append({"timestamp": timestamp, "type": "view"})
+
+        # Add actions to timeline
+        for action in actions:
+            timeline.append(
+                {
+                    "timestamp": action["timestamp"],
+                    "type": action["type"],
+                    "id": action.get("idea_id") or action.get("step_id"),
+                }
+            )
+
+        # Sort timeline by timestamp
+        timeline.sort(key=lambda x: x["timestamp"])
+
+        # Identify sessions
+        sessions = []
+        current_session = {
+            "start_time": timeline[0]["timestamp"],
+            "end_time": timeline[0]["timestamp"],
+            "events": [timeline[0]],
+            "view_count": 1 if timeline[0]["type"] == "view" else 0,
+            "idea_count": 1 if timeline[0]["type"] == "idea" else 0,
+            "step_count": 1 if timeline[0]["type"] == "step" else 0,
+        }
+
+        for i in range(1, len(timeline)):
+            event = timeline[i]
+            time_since_last = event["timestamp"] - timeline[i - 1]["timestamp"]
+
+            # Check if this event belongs to the current session
+            if time_since_last <= session_threshold:
+                # Add to current session
+                current_session["events"].append(event)
+                current_session["end_time"] = event["timestamp"]
+
+                # Update counts
+                if event["type"] == "view":
+                    current_session["view_count"] += 1
+                elif event["type"] == "idea":
+                    current_session["idea_count"] += 1
+                else:  # step
+                    current_session["step_count"] += 1
+            else:
+                # Calculate session statistics
+                current_session["duration"] = (
+                    current_session["end_time"] - current_session["start_time"]
+                )
+                current_session["action_count"] = (
+                    current_session["idea_count"] + current_session["step_count"]
+                )
+
+                # Store the session
+                sessions.append(current_session)
+
+                # Start a new session
+                current_session = {
+                    "start_time": event["timestamp"],
+                    "end_time": event["timestamp"],
+                    "events": [event],
+                    "view_count": 1 if event["type"] == "view" else 0,
+                    "idea_count": 1 if event["type"] == "idea" else 0,
+                    "step_count": 1 if event["type"] == "step" else 0,
+                }
+
+        # Don't forget the last session
+        current_session["duration"] = (
+            current_session["end_time"] - current_session["start_time"]
+        )
+        current_session["action_count"] = (
+            current_session["idea_count"] + current_session["step_count"]
+        )
+        sessions.append(current_session)
+
+        return sessions
+
+    def _analyze_process_flow(
+        self, view_action_correlation: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Analyze process flow patterns based on user action sequences.
+
+        Args:
+            view_action_correlation: View-action correlation analysis results
+
+        Returns:
+            Dictionary with process flow analysis results
+        """
+        self.logger.info("Analyzing process flow patterns")
+
+        process_flow = {
+            "global_transition_matrix": defaultdict(lambda: defaultdict(float)),
+            "common_sequences": defaultdict(int),
+            "most_frequent_starting_actions": defaultdict(int),
+            "most_frequent_ending_actions": defaultdict(int),
+            "average_sequence_length": 0,
+            "path_completion_rates": {},
+            "user_sequence_patterns": {},
+        }
+
+        # Get sessions from correlation analysis
+        sessions = view_action_correlation.get("sessions", [])
+
+        # Skip if no sessions
+        if not sessions:
+            self.logger.warning("No sessions available for process flow analysis")
+            return process_flow
+
+        # Process each session
+        all_event_sequences = []
+
+        for session in sessions:
+            events = session.get("events", [])
+            if len(events) < 2:
+                continue
+
+            # Extract sequences from this session
+            sequence_results = self._extract_action_sequences(events)
+
+            # Add to global results
+            for seq, count in sequence_results["sequence_frequencies"].items():
+                process_flow["common_sequences"][seq] += count
+
+            # Update global transition matrix
+            for from_type, to_types in sequence_results["transition_matrix"].items():
+                for to_type, prob in to_types.items():
+                    process_flow["global_transition_matrix"][from_type][to_type] += prob
+
+            # Track first and last actions in sessions
+            if events:
+                first_action = events[0]["type"]
+                last_action = events[-1]["type"]
+                process_flow["most_frequent_starting_actions"][first_action] += 1
+                process_flow["most_frequent_ending_actions"][last_action] += 1
+
+            # Add sequence to all event sequences
+            event_types = [e["type"] for e in events]
+            all_event_sequences.append(event_types)
+
+        # Normalize global transition matrix
+        num_sessions = len(sessions)
+        if num_sessions > 0:
+            # Average the probabilities across all sessions
+            for from_type in process_flow["global_transition_matrix"]:
+                for to_type in process_flow["global_transition_matrix"][from_type]:
+                    process_flow["global_transition_matrix"][from_type][
+                        to_type
+                    ] /= num_sessions
+
+        # Convert defaultdicts to regular dicts for JSON serialization
+        process_flow["global_transition_matrix"] = {
+            from_type: dict(to_types)
+            for from_type, to_types in process_flow["global_transition_matrix"].items()
+        }
+        process_flow["common_sequences"] = dict(process_flow["common_sequences"])
+        process_flow["most_frequent_starting_actions"] = dict(
+            process_flow["most_frequent_starting_actions"]
+        )
+        process_flow["most_frequent_ending_actions"] = dict(
+            process_flow["most_frequent_ending_actions"]
+        )
+
+        # Calculate average sequence length
+        if all_event_sequences:
+            total_length = sum(len(seq) for seq in all_event_sequences)
+            process_flow["average_sequence_length"] = total_length / len(
+                all_event_sequences
+            )
+
+        # Find most common full paths (view to last action)
+        view_to_end_paths = defaultdict(int)
+
+        for seq in all_event_sequences:
+            if seq and seq[0] == "view":
+                path_key = " → ".join(seq)
+                view_to_end_paths[path_key] += 1
+
+        # Get top 10 full paths
+        top_paths = sorted(view_to_end_paths.items(), key=lambda x: x[1], reverse=True)[
+            :10
+        ]
+        process_flow["most_common_full_paths"] = dict(top_paths)
+
+        # Calculate path completion rate (% of view->idea->step vs. view->idea only)
+        if (
+            "view -> idea -> step" in process_flow["common_sequences"]
+            and "view -> idea" in process_flow["common_sequences"]
+        ):
+            view_idea_step = process_flow["common_sequences"]["view -> idea -> step"]
+            view_idea = process_flow["common_sequences"]["view -> idea"]
+            if view_idea > 0:
+                process_flow["path_completion_rates"]["view_idea_to_step"] = (
+                    view_idea_step / view_idea * 100
+                )
+
+        self.logger.info("Process flow analysis completed")
+        return process_flow
+
     def _analyze_idea_characterization(self) -> Dict[str, Any]:
         """Analyze characteristics of ideas."""
         # Analyze idea iteration patterns
@@ -577,3 +1095,80 @@ class ActivityAnalyzer(BaseAnalyzer):
             )
 
         return completion_stats
+
+    @staticmethod
+    def _extract_action_sequences(timeline: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Extract and analyze action sequences from a user's timeline.
+
+        Args:
+            timeline: Chronologically sorted list of user events (views and actions)
+
+        Returns:
+            Dictionary with sequence analysis results
+        """
+        sequence_results = {
+            "common_sequences": [],
+            "sequence_frequencies": {},
+            "transition_matrix": {},
+            "typical_paths": [],
+        }
+
+        # Skip if timeline is too short
+        if len(timeline) < 2:
+            return sequence_results
+
+        # Extract action sequences (n-grams of actions)
+        sequences = []
+        current_sequence = []
+
+        for event in timeline:
+            event_type = event["type"]
+            current_sequence.append(event_type)
+
+            # Keep sequences manageable (up to 5 events)
+            if len(current_sequence) > 5:
+                current_sequence.pop(0)
+
+            # Save all sequences of length 2 or more
+            if len(current_sequence) >= 2:
+                sequences.append(tuple(current_sequence.copy()))
+
+        # Count sequence frequencies
+        sequence_counts = defaultdict(int)
+        for seq in sequences:
+            sequence_counts[seq] += 1
+
+        # Sort by frequency and convert to list of (sequence, count)
+        sorted_sequences = sorted(
+            sequence_counts.items(), key=lambda x: x[1], reverse=True
+        )
+        sequence_results["common_sequences"] = sorted_sequences[:10]  # Top 10 sequences
+        sequence_results["sequence_frequencies"] = dict(sequence_counts)
+
+        # Calculate transition probabilities
+        transitions = defaultdict(lambda: defaultdict(int))
+
+        # Count transitions between event types
+        for i in range(len(timeline) - 1):
+            from_type = timeline[i]["type"]
+            to_type = timeline[i + 1]["type"]
+            transitions[from_type][to_type] += 1
+
+        # Convert counts to probabilities
+        transition_matrix = {}
+        for from_type, to_types in transitions.items():
+            total = sum(to_types.values())
+            transition_matrix[from_type] = {
+                to_type: count / total for to_type, count in to_types.items()
+            }
+
+        sequence_results["transition_matrix"] = transition_matrix
+
+        # Identify typical paths (most common sequences starting with a view)
+        view_sequences = [seq for seq in sorted_sequences if seq[0][0] == "view"]
+        sequence_results["typical_paths"] = view_sequences[
+            :5
+        ]  # Top 5 view-initiated sequences
+
+        return sequence_results

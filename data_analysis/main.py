@@ -63,13 +63,6 @@ def parse_arguments() -> argparse.Namespace:
         help="Directory to save output files",
     )
 
-    # Analysis options
-    parser.add_argument(
-        "--analyze-evaluations",
-        action="store_true",
-        help="Run course evaluation analysis",
-    )
-
     # Data filtering options
     parser.add_argument(
         "--filter-course",
@@ -157,7 +150,7 @@ def get_selected_analyses(args: argparse.Namespace) -> Dict[str, bool]:
         "user": True,
         "activity": True,
         "idea": True,
-        "course_eval": args.analyze_evaluations,
+        "course_eval": True,
     }
 
     return analyses
@@ -242,7 +235,7 @@ def main() -> int:
             categorized_ideas_file=args.categorized_file,
             output_dir=args.output_dir,
             eval_dir=args.eval_dir,
-            analyze_evaluations=args.analyze_evaluations,
+            filter_params=prepare_filter_params(args)
         )
 
         # Run analysis based on mode
@@ -250,14 +243,6 @@ def main() -> int:
             # Visualization-only mode
             results = analyzer.run_from_results(args.results_file)
         else:
-            # Apply filters if specified
-            filter_params = prepare_filter_params(args)
-            if filter_params:
-                # Load data first
-                analyzer.data_loader.load_and_process_all()
-                # Apply filters
-                analyzer.apply_filters(filter_params)
-
             # Run either selective or full analysis
             if any(
                 option

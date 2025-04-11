@@ -63,12 +63,10 @@ class ActivityVisualizer(BaseVisualizer):
             ),
             "time_based": (
                 self._visualize_time_based_engagement,
-                # {"data_key": "time_based_engagement"},
                 {"data_key": "timeline"},
             ),
             "idea_characterization": (
                 self._visualize_idea_characterization,
-                # {"data_key": "idea_characterization"},
                 {"data_key": "engagement_levels.idea_characterization"},
             ),
             "framework_usage": (
@@ -76,6 +74,14 @@ class ActivityVisualizer(BaseVisualizer):
                 {"data_key": "framework_usage"},
             ),
             "timeline": (self._visualize_timeline, {"data_key": "timeline"}),
+            "view_action_correlation": (
+                self._visualize_view_action_correlation,
+                {"data_key": "view_action_correlation"},
+            ),
+            "process_flow": (
+                self._visualize_process_flow,
+                {"data_key": "process_flow"},
+            ),
         }
 
         # Use the helper method from BaseVisualizer
@@ -973,3 +979,538 @@ class ActivityVisualizer(BaseVisualizer):
 
         # Save and return
         return self.save_figure(filename)
+
+    def _visualize_view_action_correlation(
+        self, correlation_data: Dict[str, Any], filename: str
+    ) -> Optional[str]:
+        """
+        Create visualization of view-to-action correlation analysis.
+
+        Args:
+            correlation_data: View-action correlation data
+            filename: Base filename for saving
+
+        Returns:
+            Path to the visualization file
+        """
+        try:
+            # Check if we have sufficient data
+            if not correlation_data or "interval_distribution" not in correlation_data:
+                self.logger.warning(
+                    "Insufficient data for view-action correlation visualization"
+                )
+                return None
+
+            # Create multiple visualizations
+            outputs = {}
+
+            # 1. Interval Distribution Visualization
+            interval_plot = self._visualize_interval_distribution(
+                correlation_data, f"{filename}_intervals"
+            )
+            if interval_plot:
+                outputs["interval_distribution"] = interval_plot
+
+            # 2. Session Analysis Visualization
+            session_plot = self._visualize_session_analysis(
+                correlation_data, f"{filename}_sessions"
+            )
+            if session_plot:
+                outputs["session_analysis"] = session_plot
+
+            # 3. User Engagement Patterns
+            patterns_plot = self._visualize_user_patterns(
+                correlation_data, f"{filename}_patterns"
+            )
+            if patterns_plot:
+                outputs["user_patterns"] = patterns_plot
+
+            # Return the primary visualization path or None if none were created
+            return interval_plot if interval_plot else None
+
+        except Exception as e:
+            self.logger.error(
+                f"Error creating view-action correlation visualization: {str(e)}"
+            )
+            plt.close("all")  # Close any open figures
+            return None
+
+    def _visualize_interval_distribution(
+        self, correlation_data: Dict[str, Any], filename: str
+    ) -> Optional[str]:
+        """
+        Create visualization of interval distribution between views and actions.
+
+        Args:
+            correlation_data: View-action correlation data
+            filename: Base filename for saving
+
+        Returns:
+            Path to the visualization file
+        """
+        try:
+            # Extract interval distribution data
+            interval_distribution = correlation_data.get("interval_distribution", {})
+            if not interval_distribution:
+                return None
+
+            # Create figure
+            fig = self.setup_figure(
+                figsize=(12, 8),
+                title="Time Between Views and Actions",
+                xlabel="Time Interval",
+                ylabel="Number of Actions",
+            )
+
+            # Define time interval order (from shortest to longest)
+            interval_order = [
+                "< 1 min",
+                "1-5 min",
+                "5-15 min",
+                "15-30 min",
+                "30-60 min",
+                "1-2 hours",
+                "2-24 hours",
+                "> 24 hours",
+            ]
+
+            # Filter to intervals that exist in our data
+            labels = [
+                label for label in interval_order if label in interval_distribution
+            ]
+            values = [interval_distribution.get(label, 0) for label in labels]
+
+            # Create color gradient based on time (shorter times = darker colors)
+            colors = self.get_color_gradient(len(labels), "viridis")
+
+            # Create bar chart
+            bars = plt.bar(labels, values, color=colors)
+
+            # Add value labels
+            self.add_value_labels(plt.gca(), bars)
+
+            # Add interval statistics as text annotation
+            interval_stats = correlation_data.get("interval_stats", {})
+            if interval_stats:
+                stats_text = (
+                    f"Mean Interval: {interval_stats.get('mean', 0)/60:.1f} min\n"
+                    f"Median Interval: {interval_stats.get('median', 0)/60:.1f} min\n"
+                    f"Immediate Actions: {interval_stats.get('immediate_action_percentage', 0):.1f}%"
+                )
+                plt.annotate(
+                    stats_text,
+                    xy=(0.02, 0.95),
+                    xycoords="axes fraction",
+                    bbox=dict(boxstyle="round,pad=0.5", fc="lightyellow", alpha=0.8),
+                    verticalalignment="top",
+                    fontsize=10,
+                )
+
+            # Rotate x-axis labels for better readability
+            plt.xticks(rotation=45, ha="right")
+
+            # Highlight immediate action threshold
+            threshold_mins = (
+                correlation_data.get("immediate_action_threshold", 300) / 60
+            )
+            plt.axvline(
+                x=-0.5 + labels.index("1-5 min") if "1-5 min" in labels else 0,
+                color="red",
+                linestyle="--",
+                alpha=0.7,
+                label=f"Immediate Action Threshold ({threshold_mins:.0f} min)",
+            )
+
+            plt.legend()
+            plt.tight_layout()
+
+            # Save figure
+            return self.save_figure(filename)
+
+        except Exception as e:
+            self.logger.error(
+                f"Error creating interval distribution visualization: {str(e)}"
+            )
+            plt.close()
+            return None
+
+    def _visualize_session_analysis(
+        self, correlation_data: Dict[str, Any], filename: str
+    ) -> Optional[str]:
+        """
+        Create visualization of session-based analysis.
+
+        Args:
+            correlation_data: View-action correlation data
+            filename: Base filename for saving
+
+        Returns:
+            Path to the visualization file
+        """
+        try:
+            # Check if session data exists
+            session_stats = correlation_data.get("session_stats", {})
+            if not session_stats:
+                return None
+
+            # Create figure with two subplots
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 7))
+
+            # First subplot: Session composition
+            if (
+                "avg_views_per_session" in session_stats
+                and "avg_actions_per_session" in session_stats
+            ):
+                # Data for stacked bar chart
+                session_composition = [
+                    session_stats["avg_views_per_session"],
+                    session_stats["avg_actions_per_session"],
+                ]
+
+                # Create stacked bar
+                ax1.bar(
+                    ["Average Session"],
+                    [session_composition[0]],
+                    color="cornflowerblue",
+                    label="Views",
+                )
+                ax1.bar(
+                    ["Average Session"],
+                    [session_composition[1]],
+                    bottom=[session_composition[0]],
+                    color="coral",
+                    label="Actions",
+                )
+
+                # Add labels
+                ax1.set_title("Average Session Composition", fontsize=14)
+                ax1.set_ylabel("Count", fontsize=12)
+
+                # Add text labels on bars
+                ax1.text(
+                    0,
+                    session_composition[0] / 2,
+                    f"{session_composition[0]:.1f} views",
+                    ha="center",
+                    va="center",
+                    color="white",
+                    fontweight="bold",
+                )
+
+                ax1.text(
+                    0,
+                    session_composition[0] + session_composition[1] / 2,
+                    f"{session_composition[1]:.1f} actions",
+                    ha="center",
+                    va="center",
+                    color="white",
+                    fontweight="bold",
+                )
+
+                ax1.legend()
+
+            # Second subplot: Session duration distribution
+            sessions = correlation_data.get("sessions", [])
+            if sessions:
+                # Get session durations in minutes
+                durations = [s["duration"] / 60 for s in sessions]
+
+                # Define bins
+                max_duration = min(
+                    max(durations), 120
+                )  # Cap at 2 hours for readability
+                bins = np.linspace(0, max_duration, 20)
+
+                # Create histogram
+                ax2.hist(
+                    durations,
+                    bins=bins,
+                    color="mediumseagreen",
+                    alpha=0.7,
+                    edgecolor="black",
+                    linewidth=1,
+                )
+
+                # Add mean line
+                mean_duration = session_stats.get("avg_session_duration", 0) / 60
+                ax2.axvline(
+                    mean_duration,
+                    color="red",
+                    linestyle="--",
+                    label=f"Mean: {mean_duration:.1f} min",
+                )
+
+                # Add labels
+                ax2.set_title("Session Duration Distribution", fontsize=14)
+                ax2.set_xlabel("Duration (minutes)", fontsize=12)
+                ax2.set_ylabel("Number of Sessions", fontsize=12)
+                ax2.legend()
+
+            # Add overall title
+            fig.suptitle("User Session Analysis", fontsize=16)
+
+            plt.tight_layout(rect=[0, 0, 1, 0.95])  # Adjust for main title
+
+            # Save figure
+            return self.save_figure(filename)
+
+        except Exception as e:
+            self.logger.error(
+                f"Error creating session analysis visualization: {str(e)}"
+            )
+            plt.close()
+            return None
+
+    def _visualize_user_patterns(
+        self, correlation_data: Dict[str, Any], filename: str
+    ) -> Optional[str]:
+        """
+        Create visualization of user engagement patterns.
+
+        Args:
+            correlation_data: View-action correlation data
+            filename: Base filename for saving
+
+        Returns:
+            Path to the visualization file
+        """
+        try:
+            # Check if user pattern data exists
+            user_patterns = correlation_data.get("user_patterns", {})
+            if not user_patterns:
+                return None
+
+            # Create figure with two subplots
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 7))
+
+            # Extract user metrics for scatter plot
+            view_counts = []
+            action_counts = []
+
+            for email, data in user_patterns.items():
+                view_count = data.get("view_count", 0)
+                action_count = data.get("idea_count", 0) + data.get("step_count", 0)
+
+                view_counts.append(view_count)
+                action_counts.append(action_count)
+
+            # First plot: Scatter plot of views vs actions
+            if view_counts and action_counts:
+                # Create scatter plot with transparency for overlapping points
+                ax1.scatter(
+                    view_counts,
+                    action_counts,
+                    alpha=0.5,
+                    color="royalblue",
+                    edgecolors="navy",
+                )
+
+                # Add trend line
+                if len(view_counts) > 1:
+                    z = np.polyfit(view_counts, action_counts, 1)
+                    p = np.poly1d(z)
+
+                    # Generate points for trend line
+                    x_trend = np.linspace(min(view_counts), max(view_counts), 100)
+                    y_trend = p(x_trend)
+
+                    # Plot trend line
+                    ax1.plot(
+                        x_trend,
+                        y_trend,
+                        "r--",
+                        label=f"Trend: y = {z[0]:.2f}x + {z[1]:.2f}",
+                    )
+
+                    # Calculate and show correlation
+                    correlation = np.corrcoef(view_counts, action_counts)[0, 1]
+                    ax1.text(
+                        0.05,
+                        0.95,
+                        f"Correlation: {correlation:.2f}",
+                        transform=ax1.transAxes,
+                        verticalalignment="top",
+                        bbox=dict(boxstyle="round", facecolor="white", alpha=0.7),
+                    )
+
+                # Add labels
+                ax1.set_title("Views vs. Actions by User", fontsize=14)
+                ax1.set_xlabel("Number of Views", fontsize=12)
+                ax1.set_ylabel("Number of Actions", fontsize=12)
+
+                # Add diagonal line (1:1 ratio)
+                max_val = max(max(view_counts), max(action_counts))
+                ax1.plot([0, max_val], [0, max_val], "k--", alpha=0.3)
+
+                # Add legend if we have a trend line
+                if len(view_counts) > 1:
+                    ax1.legend()
+
+            # Second plot: User typology (stacked bar of view/action ratios)
+            # Classify users based on view-to-action ratio
+            user_types = {
+                "Viewers (>5:1)": 0,  # Many views, few actions
+                "Balanced (2-5:1)": 0,  # Balanced views and actions
+                "Doers (<2:1)": 0,  # Few views, many actions
+                "Inactive (0 actions)": 0,  # No actions
+            }
+
+            for email, data in user_patterns.items():
+                view_count = data.get("view_count", 0)
+                action_count = data.get("idea_count", 0) + data.get("step_count", 0)
+
+                if action_count == 0:
+                    user_types["Inactive (0 actions)"] += 1
+                elif view_count / action_count > 5:
+                    user_types["Viewers (>5:1)"] += 1
+                elif view_count / action_count >= 2:
+                    user_types["Balanced (2-5:1)"] += 1
+                else:
+                    user_types["Doers (<2:1)"] += 1
+
+            # Create pie chart of user types
+            labels = list(user_types.keys())
+            sizes = list(user_types.values())
+
+            # Use a custom colormap
+            colors = ["lightcoral", "goldenrod", "mediumseagreen", "lightgray"]
+
+            ax2.pie(
+                sizes, labels=labels, autopct="%1.1f%%", startangle=90, colors=colors
+            )
+            ax2.axis("equal")  # Equal aspect ratio ensures circular pie
+            ax2.set_title("User Engagement Typology", fontsize=14)
+
+            # Add overall title
+            fig.suptitle("User Engagement Patterns", fontsize=16)
+
+            plt.tight_layout(rect=[0, 0, 1, 0.95])  # Adjust for main title
+
+            # Save figure
+            return self.save_figure(filename)
+
+        except Exception as e:
+            self.logger.error(f"Error creating user patterns visualization: {str(e)}")
+            plt.close()
+            return None
+
+    def _visualize_process_flow(
+        self, process_flow: Dict[str, Any], filename: str
+    ) -> Optional[str]:
+        """
+        Create visualization of process flow analysis.
+
+        Args:
+            process_flow: Process flow analysis data
+            filename: Base filename for saving
+
+        Returns:
+            Path to the visualization file
+        """
+        try:
+            # Check if we have process flow data
+            if not process_flow or "global_transition_matrix" not in process_flow:
+                self.logger.warning("Insufficient data for process flow visualization")
+                return None
+
+            # Create figure with two subplots
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
+
+            # 1. Transition Matrix Heatmap
+            transition_matrix = process_flow.get("global_transition_matrix", {})
+
+            if transition_matrix:
+                # Extract from/to types
+                all_types = set()
+                for from_type in transition_matrix:
+                    all_types.add(from_type)
+                    for to_type in transition_matrix[from_type]:
+                        all_types.add(to_type)
+
+                # Convert to sorted list
+                sorted_types = sorted(all_types)
+
+                # Create matrix for heatmap
+                matrix_size = len(sorted_types)
+                heatmap_data = np.zeros((matrix_size, matrix_size))
+
+                # Fill matrix
+                for i, from_type in enumerate(sorted_types):
+                    for j, to_type in enumerate(sorted_types):
+                        if (
+                            from_type in transition_matrix
+                            and to_type in transition_matrix[from_type]
+                        ):
+                            heatmap_data[i, j] = transition_matrix[from_type][to_type]
+
+                # Create heatmap
+                im = ax1.imshow(heatmap_data, cmap="Blues")
+
+                # Add colorbar
+                cbar = plt.colorbar(im, ax=ax1, fraction=0.046, pad=0.04)
+                cbar.set_label("Transition Probability", fontsize=10)
+
+                # Set tick labels
+                ax1.set_xticks(np.arange(matrix_size))
+                ax1.set_yticks(np.arange(matrix_size))
+                ax1.set_xticklabels(sorted_types)
+                ax1.set_yticklabels(sorted_types)
+
+                # Rotate x tick labels
+                plt.setp(
+                    ax1.get_xticklabels(),
+                    rotation=45,
+                    ha="right",
+                    rotation_mode="anchor",
+                )
+
+                # Add grid
+                for edge, spine in ax1.spines.items():
+                    spine.set_visible(False)
+
+                ax1.set_xticks(np.arange(matrix_size + 1) - 0.5, minor=True)
+                ax1.set_yticks(np.arange(matrix_size + 1) - 0.5, minor=True)
+                ax1.grid(which="minor", color="w", linestyle="-", linewidth=2)
+
+                # Add title
+                ax1.set_title("Transition Probabilities Between Actions", fontsize=14)
+                ax1.set_xlabel("To Action", fontsize=12)
+                ax1.set_ylabel("From Action", fontsize=12)
+
+            # 2. Common Sequences Bar Chart
+            common_paths = process_flow.get("most_common_full_paths", {})
+
+            if common_paths:
+                # Get top paths
+                paths = list(common_paths.keys())[:6]  # Limit to top 6 for readability
+                counts = [common_paths[p] for p in paths]
+
+                # Create bar chart
+                bars = ax2.barh(paths, counts, color="mediumseagreen")
+
+                # Add value labels
+                for bar in bars:
+                    width = bar.get_width()
+                    ax2.text(
+                        width + 0.3,
+                        bar.get_y() + bar.get_height() / 2,
+                        f"{int(width)}",
+                        ha="left",
+                        va="center",
+                    )
+
+                ax2.set_title("Most Common Action Paths", fontsize=14)
+                ax2.set_xlabel("Frequency", fontsize=12)
+
+            # Add overall title
+            fig.suptitle("User Process Flow Analysis", fontsize=16)
+
+            plt.tight_layout(rect=[0, 0, 1, 0.95])
+
+            # Save figure
+            return self.save_figure(filename)
+
+        except Exception as e:
+            self.logger.error(f"Error creating process flow visualization: {str(e)}")
+            plt.close()
+            return None
