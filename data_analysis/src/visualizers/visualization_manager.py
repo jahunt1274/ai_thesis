@@ -12,6 +12,7 @@ from src.visualizers import (
     ActivityVisualizer,
     IdeaVisualizer,
     CourseEvaluationVisualizer,
+    TeamVisualizer,
 )
 
 logger = get_logger("visualization_manager")
@@ -39,6 +40,7 @@ class VisualizationManager:
             "activity_analysis": ActivityVisualizer,
             "idea_analysis": IdeaVisualizer,
             "course_evaluations": CourseEvaluationVisualizer,
+            "team_analysis": TeamVisualizer
         }
 
         # Create visualizer instances

@@ -1,7 +1,8 @@
 """
 Statistics utility functions for data analysis.
 """
-
+import numpy as np
+from math import sqrt
 from typing import List, Dict, Any, Optional
 from collections import defaultdict
 
@@ -125,6 +126,56 @@ class StatsUtils:
             }
         except ZeroDivisionError:
             return {"direction": direction, "slope": 0, "total_change": total_change}
+
+    @staticmethod
+    def calculate_standard_deviation(values: List[float]) -> float:
+        """
+        Calculate standard deviation of a list of values.
+
+        Args:
+            values: List of values
+
+        Returns:
+            Standard deviation
+        """
+        if not values or len(values) < 2:
+            return 0.0
+
+        n = len(values)
+        mean = sum(values) / n
+        variance = sum((x - mean) ** 2 for x in values) / n
+        return sqrt(variance)
+
+    @staticmethod
+    def calculate_gini_coefficient(values: List[float]) -> float:
+        """
+        Calculate Gini coefficient as a measure of inequality.
+
+        A Gini coefficient of 0 indicates perfect equality,
+        while 1 indicates maximum inequality.
+
+        Args:
+            values: List of values
+
+        Returns:
+            Gini coefficient (0-1)
+        """
+        if not values or all(v == 0 for v in values):
+            return 0.0
+
+        # Sort values in ascending order
+        sorted_values = sorted(values)
+        n = len(sorted_values)
+
+        # Calculate the area under the Lorenz curve
+        cumsum = np.cumsum(sorted_values)
+        lorenz_curve = cumsum / cumsum[-1]
+
+        # Calculate the area between the Lorenz curve and the line of equality
+        area_under_lorenz = np.sum(lorenz_curve) / n
+
+        # Gini coefficient is twice the area between the line of equality and the Lorenz curve
+        return 1 - 2 * area_under_lorenz
 
     @staticmethod
     def calculate_correlation(

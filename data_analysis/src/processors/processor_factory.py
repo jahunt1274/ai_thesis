@@ -10,7 +10,9 @@ from src.processors import (
     CourseEvaluationAnalyzer,
     IdeaAnalyzer,
     UserAnalyzer,
+    TeamAnalyzer,
 )
+from src.loaders.relationship_loader import RelationshipLoader
 
 
 class ProcessorFactory:
@@ -24,7 +26,7 @@ class ProcessorFactory:
         Create appropriate analyzer based on analysis type.
 
         Args:
-            analyzer_type: Type of analyzer to create ('user', 'activity', 'idea', 'course_eval')
+            analyzer_type: Type of analyzer to create ('user', 'activity', 'idea', 'course_eval', 'team')
             data: Dictionary of data to pass to the analyzer ('users', 'ideas', 'steps', 'evaluations')
             **kwargs: Additional keyword arguments to pass to the analyzer
 
@@ -36,6 +38,12 @@ class ProcessorFactory:
         steps = data.get("steps", [])
         evaluations = data.get("evaluations", [])
 
+        # Load relationship data for team analysis
+        relationship_loader = None
+        if analyzer_type == "team" and "relationship_loader" not in kwargs:
+            relationship_loader = RelationshipLoader()
+            relationship_loader.load_all()
+
         if analyzer_type == "user":
             return UserAnalyzer(users, ideas, steps, **kwargs)
         elif analyzer_type == "activity":
@@ -44,6 +52,11 @@ class ProcessorFactory:
             return IdeaAnalyzer(ideas, **kwargs)
         elif analyzer_type == "course_eval":
             return CourseEvaluationAnalyzer(evaluations, **kwargs)
+        elif analyzer_type == "team":
+            # Use provided loader or the one we just created
+            # loader = kwargs.get("relationship_loader", relationship_loader)
+            # return TeamAnalyzer(users, ideas, steps, loader, **kwargs)
+            return TeamAnalyzer(users, ideas, steps, **kwargs)
         else:
             return None
 
@@ -63,6 +76,13 @@ class ProcessorFactory:
             Dictionary mapping analyzer types to initialized analyzer instances
         """
         analyzers = {}
+
+        # Create relationship loader once if needed for team analysis
+        relationship_loader = None
+        if "team" in analyzer_types and "relationship_loader" not in kwargs:
+            relationship_loader = RelationshipLoader()
+            relationship_loader.load_all()
+            kwargs["relationship_loader"] = relationship_loader
 
         for analyzer_type in analyzer_types:
             analyzer = ProcessorFactory.create_analyzer(analyzer_type, data, **kwargs)
@@ -109,6 +129,13 @@ class ProcessorFactory:
             Dictionary mapping analyzer types to analysis results
         """
         results = {}
+
+        # Create relationship loader once if needed for team analysis
+        relationship_loader = None
+        if "team" in analyzer_types and "relationship_loader" not in kwargs:
+            relationship_loader = RelationshipLoader()
+            relationship_loader.load_all()
+            kwargs["relationship_loader"] = relationship_loader
 
         for analyzer_type in analyzer_types:
             result = ProcessorFactory.run_analyzer(analyzer_type, data, **kwargs)

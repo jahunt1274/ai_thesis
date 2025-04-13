@@ -15,6 +15,16 @@ OUTPUT_DIR = os.environ.get("AI_THESIS_OUTPUT_DIR", str(PROJECT_ROOT / "output")
 LOG_DIR = os.environ.get("AI_THESIS_LOG_DIR", str(PROJECT_ROOT / "logs"))
 SCHEMA_DIR = os.environ.get("AI_THESIS_LOG_DIR", str(PROJECT_ROOT / "schemas"))
 
+# Define path for relationship data
+RELATIONSHIP_DIR = os.environ.get(
+    "AI_THESIS_RELATIONSHIP_DIR", str(Path(DATA_DIR) / "de_teams/relationships")
+)
+
+# Define path for relationship data
+DE_TEAMS_DIR = os.environ.get(
+    "AI_THESIS_DE_TEAMS_DIR", str(Path(DATA_DIR) / "de_teams")
+)
+
 # Define path for analysis results relative to the output directory
 ANALYSIS_RESULTS_DIR = os.environ.get(
     "AI_THESIS_ANALYSIS_RESULTS_DIR", str(Path(OUTPUT_DIR) / "analysis_results")
@@ -47,6 +57,8 @@ for directory in [
     COMBINED_RESULTS_DIR,
     COURSE_EVAL_DIR,
     VISUALIZATION_OUTPUT_DIR,
+    RELATIONSHIP_DIR,
+    DE_TEAMS_DIR,
 ]:
     Path(directory).mkdir(exist_ok=True, parents=True)
 

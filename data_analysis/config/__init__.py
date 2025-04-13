@@ -12,12 +12,14 @@ from config.settings import (
     USAGE_RESULTS_DIR,
     COMBINED_RESULTS_DIR,
     VISUALIZATION_OUTPUT_DIR,
+    COURSE_EVAL_DIR,
+    RELATIONSHIP_DIR,
+    DE_TEAMS_DIR,
     # File configurations
     USER_DATA_FILE,
     IDEA_DATA_FILE,
     STEP_DATA_FILE,
     CATEGORIZED_IDEA_FILE,
-    COURSE_EVAL_DIR,
     # OpenAI configurations
     OPENAI_API_KEY,
     DEFAULT_MODEL,

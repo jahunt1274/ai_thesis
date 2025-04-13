@@ -189,13 +189,16 @@ categorization/logs
 categorization/data
 categorization/output
 
-# Ignore experimental sanbox file
+# Ignore experimental sandbox files
 data_analysis/playground.py
+data_analysis/playground.md
+data_analysis/playground.json
 
 # Ignore legacy files
 data_analysis/src/processors/legacy
 data_analysis/src/visualizers/legacy
 data_analysis/legacy
+/deprecated/
 
 # Ignore all image and html files
 *.png
